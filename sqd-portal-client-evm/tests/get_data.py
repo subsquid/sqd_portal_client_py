@@ -10,12 +10,12 @@ sqe.get_data(
             sqe.Query.TransactionsRequest(
                 sighash=['sdfsdf']
             ),
-						sqe.Query.TransactionsRequest()
+            sqe.Query.TransactionsRequest()
         ],
         fields=sqe.Query.Fields(
             transaction={
                 sqe.Query.Fields.Transaction.transactionIndex,
-                sqe.Query.Fields.Transaction.id
+                sqe.Query.Fields.Transaction.hash
             }
         )
     )
