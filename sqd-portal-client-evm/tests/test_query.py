@@ -1,6 +1,7 @@
 import pytest
 
-from sqd_portal_client_evm.query import Query, _validate_address
+from sqd_portal_client_evm.query.query import Query
+from sqd_portal_client_evm.query.evm.requests import _validate_address
 
 VITALIK_ETH = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".lower()
 
@@ -11,53 +12,55 @@ class TestQueryValidation:
     def test_query_basic_creation(self):
         """Test basic Query creation."""
         query = Query(
-            fromBlock=1000,
-            toBlock=2000,
+            from_block=1000,
+            to_block=2000,
             transactionsRequests=[],
             logsRequests=[],
             stateDiffsRequests=[],
             tracesRequests=[],
-            fields=Query.Fields.minimal_fields()
+            fields=Query.Fields.minimal_fields(),
         )
-        assert query.fromBlock == 1000
-        assert query.toBlock == 2000
+        assert query.from_block == 1000
+        assert query.to_block == 2000
 
     def test_query_validation_from_block_negative(self):
-        """Test that negative fromBlock raises ValueError."""
-        with pytest.raises(ValueError, match="fromBlock must be non-negative"):
+        """Test that negative from_block raises ValueError."""
+        with pytest.raises(ValueError, match="from_block must be non-negative"):
             Query(
-                fromBlock=-1,
+                from_block=-1,
                 transactionsRequests=[],
                 logsRequests=[],
                 stateDiffsRequests=[],
                 tracesRequests=[],
-                fields=Query.Fields.minimal_fields()
+                fields=Query.Fields.minimal_fields(),
             )
 
     def test_query_validation_to_block_before_from_block(self):
-        """Test that toBlock before fromBlock raises ValueError."""
-        with pytest.raises(ValueError, match="toBlock .* must be greater than or equal to fromBlock"):
+        """Test that to_block before from_block raises ValueError."""
+        with pytest.raises(
+            ValueError, match="to_block .* must be greater than or equal to from_block"
+        ):
             Query(
-                fromBlock=2000,
-                toBlock=1000,
+                from_block=2000,
+                to_block=1000,
                 transactionsRequests=[],
                 logsRequests=[],
                 stateDiffsRequests=[],
                 tracesRequests=[],
-                fields=Query.Fields.minimal_fields()
+                fields=Query.Fields.minimal_fields(),
             )
 
     def test_query_no_requests_warning(self):
         """Test that query with no requests shows warning."""
         with pytest.warns(UserWarning, match="Query has no request filters specified"):
             Query(
-                fromBlock=1000,
-                toBlock=2000,
+                from_block=1000,
+                to_block=2000,
                 transactionsRequests=[],
                 logsRequests=[],
                 stateDiffsRequests=[],
                 tracesRequests=[],
-                fields=Query.Fields.minimal_fields()
+                fields=Query.Fields.minimal_fields(),
             )
 
 
@@ -98,8 +101,7 @@ class TestTransactionsRequest:
     def test_transactions_request_creation(self):
         """Test basic TransactionsRequest creation."""
         request = Query.TransactionsRequest(
-            from_=[VITALIK_ETH],
-            to=["0x1234567890123456789012345678901234567890"]
+            from_=[VITALIK_ETH], to=["0x1234567890123456789012345678901234567890"]
         )
         assert len(request.from_) == 1
         assert len(request.to) == 1
@@ -112,7 +114,9 @@ class TestTransactionsRequest:
 
     def test_transactions_request_to_address_classmethod(self):
         """Test to_address classmethod."""
-        request = Query.TransactionsRequest.to_address("0x1234567890123456789012345678901234567890")
+        request = Query.TransactionsRequest.to_address(
+            "0x1234567890123456789012345678901234567890"
+        )
         assert request.to == ["0x1234567890123456789012345678901234567890"]
         assert request.from_ is None
 
@@ -130,7 +134,9 @@ class TestLogsRequest:
         """Test basic LogsRequest creation."""
         request = Query.LogsRequest(
             address=[VITALIK_ETH],
-            topic0=["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"]
+            topic0=[
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+            ],
         )
         assert len(request.address) == 1
         assert len(request.topic0) == 1
@@ -145,7 +151,9 @@ class TestLogsRequest:
         """Test transfer_event classmethod."""
         request = Query.LogsRequest.transfer_event(VITALIK_ETH)
         assert request.address == [VITALIK_ETH]
-        assert request.topic0 == ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"]
+        assert request.topic0 == [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+        ]
         assert request.transaction is True
 
 
@@ -154,9 +162,7 @@ class TestStateDiffsRequest:
 
     def test_state_diffs_request_creation(self):
         """Test basic StateDiffsRequest creation."""
-        request = Query.StateDiffsRequest(
-            address=[VITALIK_ETH]
-        )
+        request = Query.StateDiffsRequest(address=[VITALIK_ETH])
         assert len(request.address) == 1
 
     def test_state_diffs_request_for_contract_classmethod(self):
@@ -170,9 +176,7 @@ class TestTracesRequest:
 
     def test_traces_request_creation(self):
         """Test basic TracesRequest creation."""
-        request = Query.TracesRequest(
-            address=[VITALIK_ETH]
-        )
+        request = Query.TracesRequest(address=[VITALIK_ETH])
         assert len(request.address) == 1
 
     def test_traces_request_for_contract_classmethod(self):
@@ -188,7 +192,7 @@ class TestFields:
         """Test basic Fields creation."""
         fields = Query.Fields(
             block={Query.Fields.Block.number, Query.Fields.Block.hash},
-            transaction={Query.Fields.Transaction.hash}
+            transaction={Query.Fields.Transaction.hash},
         )
         assert Query.Fields.Block.number in fields.block
         assert Query.Fields.Block.hash in fields.block
@@ -229,43 +233,47 @@ class TestQueryConvenienceMethods:
     """Test Query convenience methods."""
 
     def test_transactions_method(self):
-        """Test transactions classmethod."""
-        query = Query.transactions(
-            from_address=VITALIK_ETH,
-            from_block=1000,
-            to_block=2000
+        """Test transactions method via query builder."""
+        query = Query.evm.get_transactions(
+            from_address=VITALIK_ETH, from_block=1000, to_block=2000
         )
-        assert query.fromBlock == 1000
-        assert query.toBlock == 2000
+        assert query.from_block == 1000
+        assert query.to_block == 2000
         assert len(query.transactionsRequests) == 1
         assert query.transactionsRequests[0].from_ == [VITALIK_ETH]
 
     def test_logs_from_contract_method(self):
-        """Test logs_from_contract classmethod."""
-        query = Query.logs_from_contract(
-            contract_address=VITALIK_ETH,
-            from_block=1000
-        )
-        assert query.fromBlock == 1000
+        """Test logs_from_contract method via query builder."""
+        query = Query.evm.get_logs(contract_address=VITALIK_ETH, from_block=1000)
+        assert query.from_block == 1000
         assert len(query.logsRequests) == 1
         assert query.logsRequests[0].address == [VITALIK_ETH]
 
     def test_erc20_transfers_method(self):
-        """Test erc20_transfers classmethod."""
-        query = Query.erc20_transfers(
-            token_address=VITALIK_ETH,
-            from_block=1000
+        """Test erc20_transfers method via query builder."""
+        query = Query.evm.get_erc20_transfers(
+            token_address=VITALIK_ETH, from_block=1000
         )
-        assert query.fromBlock == 1000
+        assert query.from_block == 1000
         assert len(query.logsRequests) == 1
         assert query.logsRequests[0].address == [VITALIK_ETH]
-        assert query.logsRequests[0].topic0 == ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"]
+        assert query.logsRequests[0].topic0 == [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+        ]
 
     def test_simple_block_range_method(self):
-        """Test simple_block_range classmethod."""
-        query = Query.simple_block_range(1000, 2000)
-        assert query.fromBlock == 1000
-        assert query.toBlock == 2000
+        """Test simple_block_range method via query builder."""
+        query = Query(
+            from_block=1000,
+            to_block=2000,
+            transactionsRequests=[],
+            logsRequests=[],
+            stateDiffsRequests=[],
+            tracesRequests=[],
+            fields=Query.Fields.minimal_fields(),
+        )
+        assert query.from_block == 1000
+        assert query.to_block == 2000
         assert len(query.transactionsRequests) == 0
         assert len(query.logsRequests) == 0
 
@@ -276,23 +284,21 @@ class TestQuerySerialization:
     def test_query_to_sqd_string_basic(self):
         """Test basic query serialization."""
         query = Query(
-            fromBlock=1000,
-            toBlock=2000,
-            transactionsRequests=[
-                Query.TransactionsRequest.from_address(VITALIK_ETH)
-            ],
+            from_block=1000,
+            to_block=2000,
+            transactionsRequests=[Query.TransactionsRequest.from_address(VITALIK_ETH)],
             logsRequests=[],
             stateDiffsRequests=[],
             tracesRequests=[],
-            fields=Query.Fields.minimal_fields()
+            fields=Query.Fields.minimal_fields(),
         )
 
         sqd_string = query.to_sqd_string()
 
         # Basic structure checks
         assert '"type":"evm"' in sqd_string
-        assert '"fromBlock":1000' in sqd_string
-        assert '"toBlock":2000' in sqd_string
+        assert '"from_block":1000' in sqd_string
+        assert '"to_block":2000' in sqd_string
         assert "transactions" in sqd_string
         assert "fields" in sqd_string
 
@@ -302,5 +308,5 @@ class TestQuerySerialization:
         sqd_string = query.to_sqd_string()
 
         assert '"type":"evm"' in sqd_string
-        assert '"fromBlock":1000' in sqd_string
-        assert '"toBlock":2000' in sqd_string
+        assert '"from_block":1000' in sqd_string
+        assert '"to_block":2000' in sqd_string

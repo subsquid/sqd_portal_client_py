@@ -1,70 +1,79 @@
 import asyncio
-from typing import List, Dict, Any, Optional, Union
 from dataclasses import dataclass
+from typing import List, Dict, Any, Optional, Union
 
 import aiohttp
 import requests
 
 from .dataset import Dataset
 from .query import Query
+from .query.evm import EVMQueryBuilder
+from .query.solana import SolanaQueryBuilder
 from .transport import fetch_query_output, fetch_query_output_async
 
 
 @dataclass
 class DatasetMetadata:
     """Dataset metadata response from /metadata endpoint."""
+
     dataset: str
     aliases: List[str]
     real_time: bool
     start_block: int
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'DatasetMetadata':
+    def from_dict(cls, data: Dict[str, Any]) -> "DatasetMetadata":
         return cls(
-            dataset=data['dataset'],
-            aliases=data['aliases'],
-            real_time=data['real_time'],
-            start_block=data['start_block']
+            dataset=data["dataset"],
+            aliases=data["aliases"],
+            real_time=data["real_time"],
+            start_block=data["start_block"],
         )
 
 
 @dataclass
 class BlockHead:
     """Block head response from /head and /finalized-head endpoints."""
+
     number: Optional[int]
     hash: Optional[str]
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'BlockHead':
-        return cls(
-            number=data.get('number'),
-            hash=data.get('hash')
-        )
+    def from_dict(cls, data: Dict[str, Any]) -> "BlockHead":
+        return cls(number=data.get("number"), hash=data.get("hash"))
 
 
 @dataclass
 class ConflictResponse:
     """Conflict response from API when there's a parent block hash mismatch."""
+
     previousBlocks: List[Dict[str, Union[int, str]]]
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'ConflictResponse':
-        return cls(previousBlocks=data['previousBlocks'])
+    def from_dict(cls, data: Dict[str, Any]) -> "ConflictResponse":
+        return cls(previousBlocks=data["previousBlocks"])
 
 
 @dataclass
 class StreamResponse:
     """Response from streaming endpoints with metadata."""
+
     data: List[Dict[str, Any]]
     finalized_head_number: Optional[int] = None
     finalized_head_hash: Optional[str] = None
 
     @classmethod
-    def from_response(cls, response_data: List[Dict[str, Any]], response_headers: Dict[str, str]) -> 'StreamResponse':
+    def from_response(
+            cls, response_data: List[Dict[str, Any]], response_headers: Dict[str, str]
+    ) -> "StreamResponse":
         return cls(
             data=response_data,
-            finalized_head_number=int(response_headers.get('X-Sqd-Finalized-Head-Number', 0)) if response_headers.get('X-Sqd-Finalized-Head-Number') else None,
-            finalized_head_hash=response_headers.get('X-Sqd-Finalized-Head-Hash')
+            finalized_head_number=int(
+                response_headers.get("X-Sqd-Finalized-Head-Number", 0)
+            )
+            if response_headers.get("X-Sqd-Finalized-Head-Number")
+            else None,
+            finalized_head_hash=response_headers.get("X-Sqd-Finalized-Head-Hash"),
         )
 
 
@@ -72,9 +81,9 @@ def get_data(
         *,
         dataset: Dataset | str,
         query: Query | str,
-        portal_url: str = 'https://portal.sqd.dev',
-        flattening: Optional[str] = 'by_itemtype',
-        stream_type: str = 'finalized'
+        portal_url: str = "https://portal.sqd.dev",
+        flattening: Optional[str] = "by_itemtype",
+        stream_type: str = "finalized",
 ):
     """
     Get data from SQD portal using a query.
@@ -92,13 +101,15 @@ def get_data(
     Raises:
         ValueError: If the query is invalid or API returns an error
     """
-    if stream_type not in ['finalized', 'stream']:
-        raise ValueError(f"Invalid stream_type: {stream_type}. Must be 'finalized' or 'stream'")
+    if stream_type not in ["finalized", "stream"]:
+        raise ValueError(
+            f"Invalid stream_type: {stream_type}. Must be 'finalized' or 'stream'"
+        )
 
-    endpoint = f'{portal_url}/datasets/{dataset.value}/{stream_type}-stream'
+    endpoint = f"{portal_url}/datasets/{dataset.value}/{stream_type}-stream"
 
     # Convert Query object to string if needed
-    if isinstance(query, Query):
+    if isinstance(query, (EVMQueryBuilder, SolanaQueryBuilder)):
         str_query = query.to_sqd_string()
     else:
         str_query = query
@@ -114,15 +125,19 @@ def get_data(
         # Provide more helpful error messages for unexpected errors
         error_msg = f"Failed to execute query: {e}"
         if "API request failed" in str(e):
-            error_msg += "\nThis could be due to:\n" \
-                         "1. Invalid query format\n" \
-                         "2. Network connectivity issues\n" \
-                         "3. SQD API being unavailable\n" \
-                         "4. Invalid dataset or portal URL"
+            error_msg += (
+                "\nThis could be due to:\n"
+                "1. Invalid query format\n"
+                "2. Network connectivity issues\n"
+                "3. SQD API being unavailable\n"
+                "4. Invalid dataset or portal URL"
+            )
         elif "Failed to parse API response" in str(e):
-            error_msg += "\nThis could be due to:\n" \
-                         "1. Unexpected response format from API\n" \
-                         "2. API returning HTML error page instead of JSON"
+            error_msg += (
+                "\nThis could be due to:\n"
+                "1. Unexpected response format from API\n"
+                "2. API returning HTML error page instead of JSON"
+            )
         raise ValueError(error_msg) from e
 
 
@@ -144,55 +159,86 @@ def validate_query_format(query: Query | str) -> tuple[bool, str]:
 
         # Try to parse the JSON to check format
         import json
+
         parsed = json.loads(query_str)
 
         # Check required fields according to OpenAPI DataQuery schema
-        if 'type' not in parsed:
+        if "type" not in parsed:
             return False, "Missing required field: 'type'"
 
-        if 'fromBlock' not in parsed:
-            return False, "Missing required field: 'fromBlock'"
+        if "from_block" not in parsed:
+            return False, "Missing required field: 'from_block'"
 
         # Validate field types and values
         query_content = parsed
 
-        # Type must be 'evm' for this API
-        if query_content.get('type') != 'evm':
-            return False, f"Invalid type: expected 'evm', got '{query_content.get('type')}'"
+        # Type must be 'evm' or 'solana' for this API
+        query_type = query_content.get("type")
+        if query_type not in ["evm", "solana"]:
+            return (
+                False,
+                f"Invalid type: expected 'evm' or 'solana', got '{query_type}'",
+            )
 
-        # fromBlock must be integer >= 0
-        from_block = query_content.get('fromBlock')
+        # from_block must be integer >= 0
+        from_block = query_content.get("from_block")
         if not isinstance(from_block, int) or from_block < 0:
-            return False, f"Invalid fromBlock: must be non-negative integer, got {from_block}"
+            return (
+                False,
+                f"Invalid from_block: must be non-negative integer, got {from_block}",
+            )
 
-        # toBlock must be integer >= fromBlock if provided
-        to_block = query_content.get('toBlock')
+        # to_block must be integer >= from_block if provided
+        to_block = query_content.get("to_block")
         if to_block is not None:
             if not isinstance(to_block, int):
-                return False, f"Invalid toBlock: must be integer, got {to_block}"
+                return False, f"Invalid to_block: must be integer, got {to_block}"
             if to_block < from_block:
-                return False, f"Invalid toBlock: must be >= fromBlock ({from_block}), got {to_block}"
+                return (
+                    False,
+                    f"Invalid to_block: must be >= from_block ({from_block}), got {to_block}",
+                )
 
         # parentBlockHash must be string if provided
-        parent_hash = query_content.get('parentBlockHash')
+        parent_hash = query_content.get("parentBlockHash")
         if parent_hash is not None and not isinstance(parent_hash, str):
-            return False, f"Invalid parentBlockHash: must be string, got {type(parent_hash)}"
+            return (
+                False,
+                f"Invalid parentBlockHash: must be string, got {type(parent_hash)}",
+            )
 
         # includeAllBlocks must be boolean if provided
-        include_all = query_content.get('includeAllBlocks')
+        include_all = query_content.get("includeAllBlocks")
         if include_all is not None and not isinstance(include_all, bool):
-            return False, f"Invalid includeAllBlocks: must be boolean, got {type(include_all)}"
+            return (
+                False,
+                f"Invalid includeAllBlocks: must be boolean, got {type(include_all)}",
+            )
 
         # fields must be object if provided
-        fields = query_content.get('fields')
+        fields = query_content.get("fields")
         if fields is not None and not isinstance(fields, dict):
             return False, f"Invalid fields: must be object, got {type(fields)}"
 
-        # Validate request arrays
-        for request_type in ['logs', 'transactions', 'traces', 'stateDiffs']:
-            requests = query_content.get(f'{request_type}Requests', query_content.get(request_type, []))
+        # Validate request arrays for both EVM and Solana
+        evm_request_types = ["logs", "transactions", "traces", "stateDiffs"]
+        solana_request_types = [
+            "instructions",
+            "balances",
+            "tokenBalances",
+            "rewards",
+            "logs",
+        ]
+
+        for request_type in evm_request_types + solana_request_types:
+            requests = query_content.get(
+                f"{request_type}Requests", query_content.get(request_type, [])
+            )
             if requests and not isinstance(requests, list):
-                return False, f"Invalid {request_type}: must be array, got {type(requests)}"
+                return (
+                    False,
+                    f"Invalid {request_type}: must be array, got {type(requests)}",
+                )
 
         return True, "Query format is valid according to OpenAPI schema"
 
@@ -206,10 +252,10 @@ async def get_data_async(
         *,
         dataset: Dataset | str,
         query: Query | str,
-        portal_url: str = 'https://portal.sqd.dev',
-        flattening: Optional[str] = 'by_itemtype',
+        portal_url: str = "https://portal.sqd.dev",
+        flattening: Optional[str] = "by_itemtype",
         session: Optional[aiohttp.ClientSession] = None,
-        stream_type: str = 'finalized'
+        stream_type: str = "finalized",
 ):
     """
     Async version of get_data function.
@@ -228,10 +274,12 @@ async def get_data_async(
     Raises:
         ValueError: If the query is invalid or API returns an error
     """
-    if stream_type not in ['finalized', 'stream']:
-        raise ValueError(f"Invalid stream_type: {stream_type}. Must be 'finalized' or 'stream'")
+    if stream_type not in ["finalized", "stream"]:
+        raise ValueError(
+            f"Invalid stream_type: {stream_type}. Must be 'finalized' or 'stream'"
+        )
 
-    endpoint = f'{portal_url}/datasets/{dataset.value}/{stream_type}-stream'
+    endpoint = f"{portal_url}/datasets/{dataset.value}/{stream_type}-stream"
 
     # Convert Query object to string if needed
     if isinstance(query, Query):
@@ -241,7 +289,9 @@ async def get_data_async(
 
         print(f"Executing async query: {str_query}")
     try:
-        response_data, response_headers = await fetch_query_output_async(endpoint, str_query, session)
+        response_data, response_headers = await fetch_query_output_async(
+            endpoint, str_query, session
+        )
         return StreamResponse.from_response(response_data, response_headers)
     except ValueError as e:
         # Re-raise ValueError exceptions as-is (they have specific API error info)
@@ -250,23 +300,27 @@ async def get_data_async(
         # Provide more helpful error messages for unexpected errors
         error_msg = f"Failed to execute async query: {e}"
         if "API request failed" in str(e):
-            error_msg += "\nThis could be due to:\n" \
-                         "1. Invalid query format\n" \
-                         "2. Network connectivity issues\n" \
-                         "3. SQD API being unavailable\n" \
-                         "4. Invalid dataset or portal URL"
+            error_msg += (
+                "\nThis could be due to:\n"
+                "1. Invalid query format\n"
+                "2. Network connectivity issues\n"
+                "3. SQD API being unavailable\n"
+                "4. Invalid dataset or portal URL"
+            )
         elif "Failed to parse API response" in str(e):
-            error_msg += "\nThis could be due to:\n" \
-                         "1. Unexpected response format from API\n" \
-                         "2. API returning HTML error page instead of JSON"
+            error_msg += (
+                "\nThis could be due to:\n"
+                "1. Unexpected response format from API\n"
+                "2. API returning HTML error page instead of JSON"
+            )
         raise ValueError(error_msg) from e
 
 
 def get_multiple_data(
         queries: List[tuple],
-        portal_url: str = 'https://portal.sqd.dev',
-        flattening: Optional[str] = 'by_itemtype',
-        stream_type: str = 'finalized'
+        portal_url: str = "https://portal.sqd.dev",
+        flattening: Optional[str] = "by_itemtype",
+        stream_type: str = "finalized",
 ) -> List[StreamResponse]:
     """
     Execute multiple queries sequentially and return results as a list.
@@ -289,18 +343,24 @@ def get_multiple_data(
     """
     results = []
     for dataset, query in queries:
-        result = get_data(dataset=dataset, query=query, portal_url=portal_url, flattening=flattening, stream_type=stream_type)
+        result = get_data(
+            dataset=dataset,
+            query=query,
+            portal_url=portal_url,
+            flattening=flattening,
+            stream_type=stream_type,
+        )
         results.append(result)
     return results
 
 
 async def get_multiple_data_async(
         queries: List[tuple],
-        portal_url: str = 'https://portal.sqd.dev',
-        flattening: Optional[str] = 'by_itemtype',
+        portal_url: str = "https://portal.sqd.dev",
+        flattening: Optional[str] = "by_itemtype",
         session: Optional[aiohttp.ClientSession] = None,
         max_concurrency: int = 10,
-        stream_type: str = 'finalized'
+        stream_type: str = "finalized",
 ) -> List[StreamResponse]:
     """
     Execute multiple queries concurrently and return results as a list.
@@ -332,7 +392,7 @@ async def get_multiple_data_async(
             portal_url=portal_url,
             flattening=flattening,
             session=session,
-            stream_type=stream_type
+            stream_type=stream_type,
         )
 
     # Use semaphore to limit concurrency
@@ -351,9 +411,9 @@ async def get_multiple_data_async(
 def chain_queries(
         queries: List[Query],
         dataset: Dataset | str,
-        portal_url: str = 'https://portal.sqd.dev',
-        flattening: Optional[str] = 'by_itemtype',
-        stream_type: str = 'finalized'
+        portal_url: str = "https://portal.sqd.dev",
+        flattening: Optional[str] = "by_itemtype",
+        stream_type: str = "finalized",
 ) -> List[StreamResponse]:
     """
     Execute multiple queries using the same dataset sequentially.
@@ -375,17 +435,19 @@ def chain_queries(
         ]
         results = chain_queries(queries, Dataset.ETHEREUM)
     """
-    return get_multiple_data([(dataset, query) for query in queries], portal_url, flattening, stream_type)
+    return get_multiple_data(
+        [(dataset, query) for query in queries], portal_url, flattening, stream_type
+    )
 
 
 async def chain_queries_async(
         queries: List[Query],
         dataset: Dataset | str,
-        portal_url: str = 'https://portal.sqd.dev',
-        flattening: Optional[str] = 'by_itemtype',
+        portal_url: str = "https://portal.sqd.dev",
+        flattening: Optional[str] = "by_itemtype",
         session: Optional[aiohttp.ClientSession] = None,
         max_concurrency: int = 10,
-        stream_type: str = 'finalized'
+        stream_type: str = "finalized",
 ) -> List[StreamResponse]:
     """
     Execute multiple queries using the same dataset concurrently.
@@ -410,10 +472,14 @@ async def chain_queries_async(
         results = await chain_queries_async(queries, Dataset.ETHEREUM)
     """
     query_tuples = [(dataset, query) for query in queries]
-    return await get_multiple_data_async(query_tuples, portal_url, flattening, session, max_concurrency, stream_type)
+    return await get_multiple_data_async(
+        query_tuples, portal_url, flattening, session, max_concurrency, stream_type
+    )
 
 
-def combine_query_results(results: List[StreamResponse], combine_strategy: str = 'concatenate') -> List[Dict[str, Any]]:
+def combine_query_results(
+        results: List[StreamResponse], combine_strategy: str = "concatenate"
+) -> List[Dict[str, Any]]:
     """
     Combine multiple query results using different strategies.
 
@@ -428,14 +494,14 @@ def combine_query_results(results: List[StreamResponse], combine_strategy: str =
         results = [stream_response1, stream_response2, stream_response3]
         combined = combine_query_results(results, 'concatenate')
     """
-    if combine_strategy == 'concatenate':
+    if combine_strategy == "concatenate":
         # Flatten all results into a single list
         combined = []
         for result in results:
             combined.extend(result.data)
         return combined
 
-    elif combine_strategy == 'merge':
+    elif combine_strategy == "merge":
         # Merge results by common keys (assuming dict results)
         if not results:
             return []
@@ -444,12 +510,12 @@ def combine_query_results(results: List[StreamResponse], combine_strategy: str =
         for result in results:
             for item in result.data:
                 if isinstance(item, dict):
-                    key = item.get('id') or item.get('hash') or str(item)
+                    key = item.get("id") or item.get("hash") or str(item)
                     merged[key] = item
 
         return list(merged.values())
 
-    elif combine_strategy == 'zip':
+    elif combine_strategy == "zip":
         # Combine results element-wise (zip)
         if not results:
             return []
@@ -473,8 +539,7 @@ def combine_query_results(results: List[StreamResponse], combine_strategy: str =
 
 
 def filter_combined_results(
-        combined_results: List[Dict[str, Any]],
-        filters: Optional[Dict[str, Any]] = None
+        combined_results: List[Dict[str, Any]], filters: Optional[Dict[str, Any]] = None
 ) -> List[Dict[str, Any]]:
     """
     Filter combined query results based on criteria.
@@ -511,10 +576,9 @@ def filter_combined_results(
 # NEW ENDPOINT METHODS (based on OpenAPI specification)
 # =============================================================================
 
+
 def get_dataset_metadata(
-    *,
-    dataset: Dataset | str,
-    portal_url: str = 'https://portal.sqd.dev'
+        *, dataset: Dataset | str, portal_url: str = "https://portal.sqd.dev"
 ) -> DatasetMetadata:
     """
     Get dataset metadata including name, aliases, start block, and real-time status.
@@ -529,14 +593,16 @@ def get_dataset_metadata(
     Raises:
         ValueError: If the API request fails (with specific error details)
     """
-    endpoint = f'{portal_url}/datasets/{dataset.value}/metadata'
+    endpoint = f"{portal_url}/datasets/{dataset.value}/metadata"
 
     try:
         resp = requests.get(endpoint)
         if resp.status_code == 404:
             raise ValueError(f"Dataset not found (404): {resp.text}")
         elif resp.status_code != 200:
-            raise ValueError(f"API request failed with status {resp.status_code}: {resp.text}")
+            raise ValueError(
+                f"API request failed with status {resp.status_code}: {resp.text}"
+            )
 
         data = resp.json()
         return DatasetMetadata.from_dict(data)
@@ -548,9 +614,7 @@ def get_dataset_metadata(
 
 
 def get_head(
-    *,
-    dataset: Dataset | str,
-    portal_url: str = 'https://portal.sqd.dev'
+        *, dataset: Dataset | str, portal_url: str = "https://portal.sqd.dev"
 ) -> BlockHead:
     """
     Get the highest block available in the dataset (including real-time data).
@@ -565,14 +629,16 @@ def get_head(
     Raises:
         ValueError: If the API request fails (with specific error details)
     """
-    endpoint = f'{portal_url}/datasets/{dataset.value}/head'
+    endpoint = f"{portal_url}/datasets/{dataset.value}/head"
 
     try:
         resp = requests.get(endpoint)
         if resp.status_code == 404:
             raise ValueError(f"Dataset not found (404): {resp.text}")
         elif resp.status_code != 200:
-            raise ValueError(f"API request failed with status {resp.status_code}: {resp.text}")
+            raise ValueError(
+                f"API request failed with status {resp.status_code}: {resp.text}"
+            )
 
         data = resp.json()
         return BlockHead.from_dict(data)
@@ -584,9 +650,7 @@ def get_head(
 
 
 def get_finalized_head(
-    *,
-    dataset: Dataset | str,
-    portal_url: str = 'https://portal.sqd.dev'
+        *, dataset: Dataset | str, portal_url: str = "https://portal.sqd.dev"
 ) -> BlockHead:
     """
     Get the highest finalized block available in the dataset.
@@ -601,14 +665,16 @@ def get_finalized_head(
     Raises:
         ValueError: If the API request fails (with specific error details)
     """
-    endpoint = f'{portal_url}/datasets/{dataset.value}/finalized-head'
+    endpoint = f"{portal_url}/datasets/{dataset.value}/finalized-head"
 
     try:
         resp = requests.get(endpoint)
         if resp.status_code == 404:
             raise ValueError(f"Dataset not found (404): {resp.text}")
         elif resp.status_code != 200:
-            raise ValueError(f"API request failed with status {resp.status_code}: {resp.text}")
+            raise ValueError(
+                f"API request failed with status {resp.status_code}: {resp.text}"
+            )
 
         data = resp.json()
         return BlockHead.from_dict(data)
@@ -620,11 +686,11 @@ def get_finalized_head(
 
 
 def get_stream(
-    *,
-    dataset: Dataset | str,
-    query: Query | str,
-    portal_url: str = 'https://portal.sqd.dev',
-    include_all_blocks: bool = False
+        *,
+        dataset: Dataset | str,
+        query: Query | str,
+        portal_url: str = "https://portal.sqd.dev",
+        include_all_blocks: bool = False,
 ) -> StreamResponse:
     """
     Stream blocks matching the query (may include real-time data).
@@ -641,7 +707,7 @@ def get_stream(
     Raises:
         ValueError: If the query is invalid or API returns an error
     """
-    endpoint = f'{portal_url}/datasets/{dataset.value}/stream'
+    endpoint = f"{portal_url}/datasets/{dataset.value}/stream"
 
     # Convert Query object to string if needed
     if isinstance(query, Query):
@@ -656,21 +722,23 @@ def get_stream(
     except Exception as e:
         error_msg = f"Failed to execute stream query: {e}"
         if "API request failed" in str(e):
-            error_msg += "\nThis could be due to:\n" \
-                         "1. Invalid query format\n" \
-                         "2. Network connectivity issues\n" \
-                         "3. SQD API being unavailable\n" \
-                         "4. Invalid dataset or portal URL"
+            error_msg += (
+                "\nThis could be due to:\n"
+                "1. Invalid query format\n"
+                "2. Network connectivity issues\n"
+                "3. SQD API being unavailable\n"
+                "4. Invalid dataset or portal URL"
+            )
         raise ValueError(error_msg) from e
 
 
 async def get_stream_async(
-    *,
-    dataset: Dataset | str,
-    query: Query | str,
-    portal_url: str = 'https://portal.sqd.dev',
-    session: Optional[aiohttp.ClientSession] = None,
-    include_all_blocks: bool = False
+        *,
+        dataset: Dataset | str,
+        query: Query | str,
+        portal_url: str = "https://portal.sqd.dev",
+        session: Optional[aiohttp.ClientSession] = None,
+        include_all_blocks: bool = False,
 ) -> StreamResponse:
     """
     Async version of get_stream.
@@ -688,7 +756,7 @@ async def get_stream_async(
     Raises:
         ValueError: If the query is invalid or API returns an error
     """
-    endpoint = f'{portal_url}/datasets/{dataset.value}/stream'
+    endpoint = f"{portal_url}/datasets/{dataset.value}/stream"
 
     # Convert Query object to string if needed
     if isinstance(query, Query):
@@ -698,22 +766,27 @@ async def get_stream_async(
 
     print(f"Executing async stream query: {str_query}")
     try:
-        response_data, response_headers = await fetch_query_output_async(endpoint, str_query, session)
+        response_data, response_headers = await fetch_query_output_async(
+            endpoint, str_query, session
+        )
         return StreamResponse.from_response(response_data, response_headers)
     except Exception as e:
         error_msg = f"Failed to execute async stream query: {e}"
         if "API request failed" in str(e):
-            error_msg += "\nThis could be due to:\n" \
-                         "1. Invalid query format\n" \
-                         "2. Network connectivity issues\n" \
-                         "3. SQD API being unavailable\n" \
-                         "4. Invalid dataset or portal URL"
+            error_msg += (
+                "\nThis could be due to:\n"
+                "1. Invalid query format\n"
+                "2. Network connectivity issues\n"
+                "3. SQD API being unavailable\n"
+                "4. Invalid dataset or portal URL"
+            )
         raise ValueError(error_msg) from e
 
 
 # =============================================================================
 # QUERY CHAIN CLASS
 # =============================================================================
+
 
 class QueryChain:
     """
@@ -728,28 +801,40 @@ class QueryChain:
         )
     """
 
-    def __init__(self, dataset: Dataset | str, portal_url: str = 'https://portal.sqd.dev'):
+    def __init__(
+            self, dataset: Dataset | str, portal_url: str = "https://portal.sqd.dev"
+    ):
         self.dataset = dataset
         self.portal_url = portal_url
         self.queries: List[Query] = []
 
-    def add(self, query: Query) -> 'QueryChain':
+    def add(self, query: Query) -> "QueryChain":
         """Add a query to the chain."""
         self.queries.append(query)
         return self
 
-    def execute(self, flattening: Optional[str] = 'by_itemtype', stream_type: str = 'finalized') -> List[StreamResponse]:
+    def execute(
+            self, flattening: Optional[str] = "by_itemtype", stream_type: str = "finalized"
+    ) -> List[StreamResponse]:
         """Execute all queries in the chain sequentially."""
-        return chain_queries(self.queries, self.dataset, self.portal_url, flattening, stream_type)
+        return chain_queries(
+            self.queries, self.dataset, self.portal_url, flattening, stream_type
+        )
 
     async def execute_async(
             self,
-            flattening: Optional[str] = 'by_itemtype',
+            flattening: Optional[str] = "by_itemtype",
             session: Optional[aiohttp.ClientSession] = None,
             max_concurrency: int = 10,
-            stream_type: str = 'finalized'
+            stream_type: str = "finalized",
     ) -> List[StreamResponse]:
         """Execute all queries in the chain concurrently."""
         return await chain_queries_async(
-            self.queries, self.dataset, self.portal_url, flattening, session, max_concurrency, stream_type
+            self.queries,
+            self.dataset,
+            self.portal_url,
+            flattening,
+            session,
+            max_concurrency,
+            stream_type,
         )

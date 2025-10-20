@@ -4,87 +4,114 @@ import pytest
 
 import sqd_portal_client_evm as sqd_client
 from sqd_portal_client_evm.client import (
-    get_data, get_data_async, get_multiple_data, get_multiple_data_async,
-    chain_queries, chain_queries_async, combine_query_results,
-    filter_combined_results, QueryChain, validate_query_format
+    get_data,
+    get_data_async,
+    get_multiple_data,
+    get_multiple_data_async,
+    chain_queries,
+    chain_queries_async,
+    combine_query_results,
+    filter_combined_results,
+    QueryChain,
+    validate_query_format,
 )
 
 
 class TestGetData:
     """Test synchronous get_data function."""
 
-    @patch('sqd_portal_client_evm.client.fetch_query_output')
+    @patch("sqd_portal_client_evm.client.fetch_query_output")
     def test_get_data_with_query_object(self, mock_fetch):
         """Test get_data with Query object."""
-        mock_fetch.return_value = [{"data": "test"}]
+        mock_fetch.return_value = ([{"data": "test"}], {})
 
         query = sqd_client.Query.simple_block_range(1000, 2000)
         result = get_data(
             dataset=sqd_client.Dataset.ETHEREUM,
             query=query,
-            portal_url="https://test.com"
+            portal_url="https://test.com",
         )
 
-        assert result == [{"data": "test"}]
+        assert result.data == [{"data": "test"}]
         mock_fetch.assert_called_once()
         call_args = mock_fetch.call_args[0]
         assert sqd_client.Dataset.ETHEREUM.value in call_args[0]  # endpoint URL
-        assert '"fromBlock":1000' in call_args[1]  # query string
+        assert '"from_block":1000' in call_args[1]  # query string
 
-    @patch('sqd_portal_client_evm.client.fetch_query_output')
+    @patch("sqd_portal_client_evm.client.fetch_query_output")
     def test_get_data_with_query_string(self, mock_fetch):
         """Test get_data with query string."""
-        mock_fetch.return_value = [{"data": "test"}]
+        mock_fetch.return_value = ([{"data": "test"}], {})
 
-        query_str = '{"type": "evm", "fromBlock": 1000}'
+        query_str = '{"type": "evm", "from_block": 1000}'
         result = get_data(
             dataset=sqd_client.Dataset.ETHEREUM,
             query=query_str,
-            portal_url="https://test.com"
+            portal_url="https://test.com",
         )
 
-        assert result == [{"data": "test"}]
+        assert result.data == [{"data": "test"}]
         mock_fetch.assert_called_once()
         call_args = mock_fetch.call_args[0]
         assert call_args[1] == query_str
 
-    @patch('sqd_portal_client_evm.client.fetch_query_output')
+    @patch("sqd_portal_client_evm.client.fetch_query_output")
+    def test_get_data_with_solana_dataset(self, mock_fetch):
+        """Test get_data with Solana dataset."""
+        mock_fetch.return_value = ([{"data": "test"}], {})
+
+        query = sqd_client.Query.solana().get_instructions(
+            program_id="11111111111111111111111111111112", from_block=1000
+        )
+        result = get_data(
+            dataset=sqd_client.Dataset.SOLANA,
+            query=query,
+            portal_url="https://test.com",
+        )
+
+        assert result.data == [{"data": "test"}]
+        mock_fetch.assert_called_once()
+        call_args = mock_fetch.call_args[0]
+        assert sqd_client.Dataset.SOLANA.value in call_args[0]  # endpoint URL
+        assert '"type":"solana"' in call_args[1]  # query string
+
+    @patch("sqd_portal_client_evm.client.fetch_query_output")
     def test_get_data_with_flattening(self, mock_fetch):
         """Test get_data with custom flattening."""
-        mock_fetch.return_value = [{"data": "test"}]
+        mock_fetch.return_value = ([{"data": "test"}], {})
 
         query = sqd_client.Query.simple_block_range(1000, 2000)
         result = get_data(
             dataset=sqd_client.Dataset.ETHEREUM,
             query=query,
-            flattening="by_transaction"
+            flattening="by_transaction",
         )
 
-        assert result == [{"data": "test"}]
+        assert result.data == [{"data": "test"}]
         # Verify that flattening parameter is passed through in endpoint URL
         mock_fetch.assert_called_once()
         call_args = mock_fetch.call_args[0]
         assert sqd_client.Dataset.ETHEREUM.value in call_args[0]
 
-    @patch('sqd_portal_client_evm.client.fetch_query_output')
+    @patch("sqd_portal_client_evm.client.fetch_query_output")
     def test_get_data_fetch_error_propagation(self, mock_fetch):
         """Test that fetch errors are properly propagated."""
         mock_fetch.side_effect = ValueError("API request failed")
 
         query = sqd_client.Query.simple_block_range(1000, 2000)
 
-        with pytest.raises(ValueError, match="Failed to execute query: API request failed"):
+        with pytest.raises(ValueError, match="API request failed"):
             get_data(dataset=sqd_client.Dataset.ETHEREUM, query=query)
 
-    @patch('sqd_portal_client_evm.client.fetch_query_output')
+    @patch("sqd_portal_client_evm.client.fetch_query_output")
     def test_get_data_default_portal_url(self, mock_fetch):
         """Test get_data with default portal URL."""
-        mock_fetch.return_value = []
+        mock_fetch.return_value = ([], {})
 
         query = sqd_client.Query.simple_block_range(1000, 2000)
         result = get_data(dataset=sqd_client.Dataset.ETHEREUM, query=query)
 
-        assert result == []
+        assert result.data == []
         mock_fetch.assert_called_once()
         call_args = mock_fetch.call_args[0]
         assert "portal.sqd.dev" in call_args[0]
@@ -101,11 +128,11 @@ class TestGetDataAsync:
         params = list(sig.parameters.keys())
 
         # Should have same params as get_data plus session
-        assert 'dataset' in params
-        assert 'query' in params
-        assert 'portal_url' in params
-        assert 'flattening' in params
-        assert 'session' in params
+        assert "dataset" in params
+        assert "query" in params
+        assert "portal_url" in params
+        assert "flattening" in params
+        assert "session" in params
 
         # Should be an async function
         assert inspect.iscoroutinefunction(get_data_async)
@@ -114,19 +141,28 @@ class TestGetDataAsync:
 class TestGetMultipleData:
     """Test get_multiple_data function."""
 
-    @patch('sqd_portal_client_evm.client.get_data')
+    @patch("sqd_portal_client_evm.client.get_data")
     def test_get_multiple_data_sequential(self, mock_get_data):
         """Test get_multiple_data executes queries sequentially."""
         mock_get_data.side_effect = [
             [{"data": "result1"}],
             [{"data": "result2"}],
-            [{"data": "result3"}]
+            [{"data": "result3"}],
         ]
 
         queries = [
-            (sqd_client.Dataset.ETHEREUM, sqd_client.Query.simple_block_range(1000, 1100)),
-            (sqd_client.Dataset.ETHEREUM, sqd_client.Query.simple_block_range(1100, 1200)),
-            (sqd_client.Dataset.ETHEREUM, sqd_client.Query.simple_block_range(1200, 1300))
+            (
+                sqd_client.Dataset.ETHEREUM,
+                sqd_client.Query.simple_block_range(1000, 1100),
+            ),
+            (
+                sqd_client.Dataset.ETHEREUM,
+                sqd_client.Query.simple_block_range(1100, 1200),
+            ),
+            (
+                sqd_client.Dataset.ETHEREUM,
+                sqd_client.Query.simple_block_range(1200, 1300),
+            ),
         ]
 
         results = get_multiple_data(queries, portal_url="https://test.com")
@@ -151,11 +187,11 @@ class TestGetMultipleDataAsync:
         params = list(sig.parameters.keys())
 
         # Should have queries, portal_url, flattening, session, max_concurrency
-        assert 'queries' in params
-        assert 'portal_url' in params
-        assert 'flattening' in params
-        assert 'session' in params
-        assert 'max_concurrency' in params
+        assert "queries" in params
+        assert "portal_url" in params
+        assert "flattening" in params
+        assert "session" in params
+        assert "max_concurrency" in params
 
         # Should be an async function
         assert inspect.iscoroutinefunction(get_multiple_data_async)
@@ -164,23 +200,21 @@ class TestGetMultipleDataAsync:
 class TestChainQueries:
     """Test chain_queries function."""
 
-    @patch('sqd_portal_client_evm.client.get_multiple_data')
+    @patch("sqd_portal_client_evm.client.get_multiple_data")
     def test_chain_queries_same_dataset(self, mock_get_multiple_data):
         """Test chain_queries with same dataset for all queries."""
         mock_get_multiple_data.return_value = [
             [{"data": "result1"}],
-            [{"data": "result2"}]
+            [{"data": "result2"}],
         ]
 
         queries = [
             sqd_client.Query.simple_block_range(1000, 1100),
-            sqd_client.Query.simple_block_range(1100, 1200)
+            sqd_client.Query.simple_block_range(1100, 1200),
         ]
 
         results = chain_queries(
-            queries,
-            sqd_client.Dataset.ETHEREUM,
-            portal_url="https://test.com"
+            queries, sqd_client.Dataset.ETHEREUM, portal_url="https://test.com"
         )
 
         assert len(results) == 2
@@ -204,12 +238,12 @@ class TestChainQueriesAsync:
         params = list(sig.parameters.keys())
 
         # Should have queries, dataset, portal_url, flattening, session, max_concurrency
-        assert 'queries' in params
-        assert 'dataset' in params
-        assert 'portal_url' in params
-        assert 'flattening' in params
-        assert 'session' in params
-        assert 'max_concurrency' in params
+        assert "queries" in params
+        assert "dataset" in params
+        assert "portal_url" in params
+        assert "flattening" in params
+        assert "session" in params
+        assert "max_concurrency" in params
 
         # Should be an async function
         assert inspect.iscoroutinefunction(chain_queries_async)
@@ -221,9 +255,9 @@ class TestCombineQueryResults:
     def test_combine_concatenate(self):
         """Test concatenate strategy."""
         results = [
-            [{"id": 1}, {"id": 2}],
-            [{"id": 3}],
-            [{"id": 4}, {"id": 5}, {"id": 6}]
+            sqd_client.StreamResponse([{"id": 1}, {"id": 2}]),
+            sqd_client.StreamResponse([{"id": 3}]),
+            sqd_client.StreamResponse([{"id": 4}, {"id": 5}, {"id": 6}]),
         ]
 
         combined = combine_query_results(results, "concatenate")
@@ -234,8 +268,12 @@ class TestCombineQueryResults:
     def test_combine_merge(self):
         """Test merge strategy."""
         results = [
-            [{"id": 1, "value": "a"}, {"id": 2, "value": "b"}],
-            [{"id": 1, "value": "updated_a"}, {"id": 3, "value": "c"}]
+            sqd_client.StreamResponse(
+                [{"id": 1, "value": "a"}, {"id": 2, "value": "b"}]
+            ),
+            sqd_client.StreamResponse(
+                [{"id": 1, "value": "updated_a"}, {"id": 3, "value": "c"}]
+            ),
         ]
 
         combined = combine_query_results(results, "merge")
@@ -249,8 +287,8 @@ class TestCombineQueryResults:
     def test_combine_zip(self):
         """Test zip strategy."""
         results = [
-            [{"id": 1}, {"id": 2}, {"id": 3}],
-            [{"value": "a"}, {"value": "b"}, {"value": "c"}]
+            sqd_client.StreamResponse([{"id": 1}, {"id": 2}, {"id": 3}]),
+            sqd_client.StreamResponse([{"value": "a"}, {"value": "b"}, {"value": "c"}]),
         ]
 
         combined = combine_query_results(results, "zip")
@@ -258,15 +296,15 @@ class TestCombineQueryResults:
         expected = [
             [{"id": 1}, {"value": "a"}],
             [{"id": 2}, {"value": "b"}],
-            [{"id": 3}, {"value": "c"}]
+            [{"id": 3}, {"value": "c"}],
         ]
         assert combined == expected
 
     def test_combine_zip_unequal_lengths(self):
         """Test zip strategy with unequal list lengths."""
         results = [
-            [{"id": 1}, {"id": 2}],
-            [{"value": "a"}, {"value": "b"}, {"value": "c"}]
+            sqd_client.StreamResponse([{"id": 1}, {"id": 2}]),
+            sqd_client.StreamResponse([{"value": "a"}, {"value": "b"}, {"value": "c"}]),
         ]
 
         combined = combine_query_results(results, "zip")
@@ -274,7 +312,7 @@ class TestCombineQueryResults:
         expected = [
             [{"id": 1}, {"value": "a"}],
             [{"id": 2}, {"value": "b"}],
-            [None, {"value": "c"}]
+            [None, {"value": "c"}],
         ]
         assert combined == expected
 
@@ -302,7 +340,7 @@ class TestFilterCombinedResults:
         results = [
             {"id": 1, "value": "a", "type": "test"},
             {"id": 2, "value": "b", "type": "other"},
-            {"id": 3, "value": "c", "type": "test"}
+            {"id": 3, "value": "c", "type": "test"},
         ]
 
         filters = {"type": "test"}
@@ -310,7 +348,7 @@ class TestFilterCombinedResults:
 
         expected = [
             {"id": 1, "value": "a", "type": "test"},
-            {"id": 3, "value": "c", "type": "test"}
+            {"id": 3, "value": "c", "type": "test"},
         ]
         assert filtered == expected
 
@@ -318,7 +356,7 @@ class TestFilterCombinedResults:
         """Test filtering with no matching criteria."""
         results = [
             {"id": 1, "value": "a", "type": "test"},
-            {"id": 2, "value": "b", "type": "other"}
+            {"id": 2, "value": "b", "type": "other"},
         ]
 
         filters = {"type": "nonexistent"}
@@ -331,7 +369,7 @@ class TestFilterCombinedResults:
         results = [
             {"id": 1, "value": "a", "type": "test", "status": "active"},
             {"id": 2, "value": "b", "type": "test", "status": "inactive"},
-            {"id": 3, "value": "c", "type": "other", "status": "active"}
+            {"id": 3, "value": "c", "type": "other", "status": "active"},
         ]
 
         filters = {"type": "test", "status": "active"}
@@ -371,22 +409,25 @@ class TestQueryChain:
         assert chain.queries[0] == query1
         assert chain.queries[1] == query2
 
-    @patch('sqd_portal_client_evm.client.chain_queries')
+    @patch("sqd_portal_client_evm.client.chain_queries")
     def test_query_chain_execute(self, mock_chain_queries):
         """Test QueryChain execute method."""
-        mock_chain_queries.return_value = [{"data": "result"}]
+        mock_chain_queries.return_value = [
+            sqd_client.StreamResponse([{"data": "result"}])
+        ]
 
         chain = QueryChain(sqd_client.Dataset.ETHEREUM)
         chain.add(sqd_client.Query.simple_block_range(1000, 1100))
 
         result = chain.execute(flattening="by_transaction")
 
-        assert result == [{"data": "result"}]
+        assert result[0].data == [{"data": "result"}]
         mock_chain_queries.assert_called_once_with(
             chain.queries,
             chain.dataset,
             chain.portal_url,
-            "by_transaction"
+            "by_transaction",
+            "finalized",
         )
 
     def test_query_chain_execute_async_structure(self):
@@ -394,7 +435,7 @@ class TestQueryChain:
         import inspect
 
         chain = QueryChain(sqd_client.Dataset.ETHEREUM)
-        execute_async_method = getattr(chain, 'execute_async')
+        execute_async_method = getattr(chain, "execute_async")
 
         # Should be an async method
         assert inspect.iscoroutinefunction(execute_async_method)
@@ -409,15 +450,15 @@ class TestValidateQueryFormat:
         is_valid, message = validate_query_format(query)
 
         assert is_valid is True
-        assert message == "Query format looks valid"
+        assert message == "Query format is valid according to OpenAPI schema"
 
     def test_validate_query_format_valid_query_string(self):
         """Test validating a valid query string."""
-        query_str = '{"type": "evm", "fromBlock": 1000, "toBlock": 2000, "fields": {}}'
+        query_str = '{"type": "evm", "from_block": 1000, "to_block": 2000, "fields": {}}'
         is_valid, message = validate_query_format(query_str)
 
         assert is_valid is True
-        assert message == "Query format looks valid"
+        assert message == "Query format is valid according to OpenAPI schema"
 
     def test_validate_query_format_invalid_json(self):
         """Test validating invalid JSON."""
@@ -429,19 +470,27 @@ class TestValidateQueryFormat:
 
     def test_validate_query_format_missing_type(self):
         """Test validating query without type field."""
-        query_str = '{"fromBlock": 1000}'
+        query_str = '{"from_block": 1000}'
         is_valid, message = validate_query_format(query_str)
 
         assert is_valid is False
-        assert "Query content should have 'type' field" in message
+        assert "Missing required field: 'type'" in message
 
-    def test_validate_query_format_wrong_type(self):
-        """Test validating query with wrong type."""
-        query_str = '{"type": "solana", "fromBlock": 1000}'
+    def test_validate_query_format_valid_solana_type(self):
+        """Test validating query with valid solana type."""
+        query_str = '{"type": "solana", "from_block": 1000}'
+        is_valid, message = validate_query_format(query_str)
+
+        assert is_valid is True
+        assert "Query format is valid" in message
+
+    def test_validate_query_format_invalid_type(self):
+        """Test validating query with invalid type."""
+        query_str = '{"type": "invalid", "from_block": 1000}'
         is_valid, message = validate_query_format(query_str)
 
         assert is_valid is False
-        assert "Expected type 'evm', got 'solana'" in message
+        assert "expected 'evm' or 'solana', got 'invalid'" in message
 
     def test_validate_query_format_invalid_query_object(self):
         """Test validating Query object that raises exception."""

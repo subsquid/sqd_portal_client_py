@@ -8,6 +8,7 @@ import pytest
 def sample_query():
     """A sample query for testing."""
     import sqd_portal_client_evm as sqd_client
+
     return sqd_client.Query.simple_block_range(1000, 2000)
 
 
@@ -15,7 +16,32 @@ def sample_query():
 def sample_dataset():
     """A sample dataset for testing."""
     import sqd_portal_client_evm as sqd_client
+
     return sqd_client.Dataset.ETHEREUM
+
+
+@pytest.fixture
+def sample_solana_query():
+    """A sample Solana query for testing."""
+    import sqd_portal_client_evm as sqd_client
+
+    return sqd_client.Query.solana().get_instructions(
+        program_id="11111111111111111111111111111112", from_block=1000, to_block=2000
+    )
+
+
+@pytest.fixture
+def sample_solana_dataset():
+    """A sample Solana dataset for testing."""
+    import sqd_portal_client_evm as sqd_client
+
+    return sqd_client.Dataset.SOLANA
+
+
+@pytest.fixture
+def sample_solana_address():
+    """A sample Solana address for testing."""
+    return "11111111111111111111111111111112"
 
 
 @pytest.fixture
@@ -30,7 +56,7 @@ def mock_response_data():
     return [
         {"id": 1, "data": "test1"},
         {"id": 2, "data": "test2"},
-        {"id": 3, "data": "test3"}
+        {"id": 3, "data": "test3"},
     ]
 
 
