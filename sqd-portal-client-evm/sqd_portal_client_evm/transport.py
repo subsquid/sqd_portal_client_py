@@ -1,18 +1,11 @@
-import requests
 from typing import Optional
 
 import aiohttp
+import requests
+import ujson as json_lib
 from loguru import logger
 
-try:
-    import ujson as json_lib
-
-    JSONDecodeError = json_lib.JSONDecodeError
-except ImportError:
-    import json as std_json
-
-    json_lib = std_json
-    JSONDecodeError = std_json.JSONDecodeError
+JSONDecodeError = json_lib.JSONDecodeError
 
 
 def fetch_query_output(portal_endpoint_url: str, query: str) -> tuple[list[dict], dict]:
@@ -59,7 +52,10 @@ def fetch_query_output(portal_endpoint_url: str, query: str) -> tuple[list[dict]
         )
 
     response_text = resp.text
-    logger.trace("Response: {}", response_text[:500] if len(response_text) > 500 else response_text)
+    logger.trace(
+        "Response: {}",
+        response_text[:500] if len(response_text) > 500 else response_text,
+    )
 
     # Handle empty response
     if not response_text.strip():
@@ -146,7 +142,10 @@ async def fetch_query_output_async(
                 )
 
             response_text = await resp.text()
-            logger.trace("Async response: {}", response_text[:500] if len(response_text) > 500 else response_text)
+            logger.trace(
+                "Async response: {}",
+                response_text[:500] if len(response_text) > 500 else response_text,
+            )
 
             # Handle empty response
             if not response_text.strip():

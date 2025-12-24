@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
@@ -60,10 +58,10 @@ class StreamResponse:
     ) -> "StreamResponse":
         return cls(
             data=response_data,
-            finalized_head_number=int(
-                response_headers.get("X-Sqd-Finalized-Head-Number", 0)
-            )
-            if response_headers.get("X-Sqd-Finalized-Head-Number")
-            else None,
+            finalized_head_number=(
+                int(response_headers.get("X-Sqd-Finalized-Head-Number", 0))
+                if response_headers.get("X-Sqd-Finalized-Head-Number")
+                else None
+            ),
             finalized_head_hash=response_headers.get("X-Sqd-Finalized-Head-Hash"),
         )

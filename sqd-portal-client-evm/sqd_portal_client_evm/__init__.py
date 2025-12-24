@@ -1,30 +1,6 @@
+from .sqd import SQD
 from .dataset import Dataset
-from .query import (
-    SQD,
-    SQDQuery,
-    TransactionField,
-    LogField,
-    InstructionField,
-    SolanaTransactionField,
-    SolanaLogField,
-    BalanceField,
-    TokenBalanceField,
-    RewardField,
-    SolanaBlockField,
-)
-from .query.evm import (
-    TransactionsRequest,
-    LogsRequest,
-    StateDiffsRequest,
-    TracesRequest,
-)
-from .query.solana import (
-    InstructionsRequest,
-    SolanaTransactionsRequest,
-    BalancesRequest,
-    TokenBalancesRequest,
-    RewardsRequest,
-    SolanaLogsRequest,
-)
+from .query.evm import fields as EvmFields
+from .query.solana import fields as SolanaFields
 
-# Initialize field enums after all imports
+__all__ = ["SQD", "Dataset", "EvmFields", "SolanaFields"]

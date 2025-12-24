@@ -24,8 +24,12 @@ def _normalize_dataset(dataset: Dataset | str) -> Dataset | str:
     try:
         return Dataset(dataset)
     except ValueError:
-        logger.warning("Dataset '{}' is not recognized and may lead to unexpected behavior.", dataset)
+        logger.warning(
+            "Dataset '{}' is not recognized and may lead to unexpected behavior.",
+            dataset,
+        )
         return dataset
+
 
 def validate_evm_address(address: str) -> str:
     """

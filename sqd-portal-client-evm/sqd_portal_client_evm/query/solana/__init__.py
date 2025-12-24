@@ -4,7 +4,6 @@ Solana Query Package
 This package provides Solana-specific query functionality for the SQD Portal Client.
 """
 
-from .fields import SolanaFields
 from .requests import (
     InstructionsRequest,
     SolanaTransactionsRequest,
@@ -12,16 +11,31 @@ from .requests import (
     TokenBalancesRequest,
     RewardsRequest,
     SolanaLogsRequest,
-    _request_to_sqd_string,
+)
+from .fields import (
+    BalanceField,
+    InstructionField,
+    RewardField,
+    SolanaBlockField,
+    SolanaLogField,
+    SolanaTransactionField,
+    TokenBalanceField,
 )
 
 __all__ = [
-    "SolanaFields",
+    # request classes
     "InstructionsRequest",
     "SolanaTransactionsRequest",
     "BalancesRequest",
     "TokenBalancesRequest",
     "RewardsRequest",
     "SolanaLogsRequest",
-    "_request_to_sqd_string",
+    # field enums
+    "BalanceField",
+    "InstructionField",
+    "RewardField",
+    "SolanaBlockField",
+    "SolanaLogField",
+    "SolanaTransactionField",
+    "TokenBalanceField",
 ]

@@ -2,17 +2,13 @@
 EVM Request classes for SQD Portal Client
 
 This module provides EVM-specific request classes for filtering blockchain data.
+All fields and options match the SQD Portal OpenAPI specification.
 """
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from typing import Optional
 
 from sqd_portal_client_evm.utils import validate_evm_address
-
-try:
-    import ujson as json_lib
-except ImportError:
-    import json as json_lib
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -21,22 +17,12 @@ class TransactionsRequest:
     Request for filtering transactions by various criteria.
 
     Args:
-        from_: List of sender addresses (e.g., ['0x123...', '0x456...'])
-        to: List of recipient addresses (e.g., ['0x789...', '0xabc...'])
-        sighash: List of method signatures (e.g., ['0xa9059cbb']) for specific function calls
-        logs: Include transaction logs in results
-        traces: Include transaction traces in results
-        stateDiffs: Include state changes in results
-
-    Example:
-        # Get all transactions from a specific address
-        request = TransactionsRequest(from_=['0x742d35Cc6634C0532925a3b8'])
-
-        # Get transfers to a specific address
-        request = TransactionsRequest(to=['0x742d35Cc6634C0532925a3b8'])
-
-        # Get ERC-20 transfers (transfer method signature)
-        request = TransactionsRequest(sighash=['0xa9059cbb'], logs=True)
+        from_: List of sender addresses
+        to: List of recipient addresses
+        sighash: List of method signature hashes (e.g., ['0xa9059cbb'] for transfer)
+        logs: Include all logs emitted by matching transactions
+        traces: Include all traces for matching transactions
+        stateDiffs: Include all state diffs caused by matching transactions
     """
 
     from_: Optional[list[str]] = None
@@ -56,13 +42,6 @@ class TransactionsRequest:
         """Create a request to get all transactions to a specific address."""
         return cls(to=[validate_evm_address(address)])
 
-    @classmethod
-    def transfer(
-            cls, token_address: str, include_logs: bool = True
-    ) -> "TransactionsRequest":
-        """Create a request for ERC-20 transfer transactions."""
-        return cls(sighash=["0xa9059cbb"], logs=include_logs)
-
 
 @dataclass(frozen=True, kw_only=True)
 class LogsRequest:
@@ -70,24 +49,14 @@ class LogsRequest:
     Request for filtering event logs by various criteria.
 
     Args:
-        address: List of contract addresses that emitted the logs
+        address: List of contract addresses emitting the logs
         topic0: List of event signature hashes (first topic)
-        topic1: List of first indexed parameter values (second topic)
-        topic2: List of second indexed parameter values (third topic)
-        topic3: List of third indexed parameter values (fourth topic)
-        transaction: Include the transaction that triggered the log
-        transactionTraces: Include traces related to the transaction
-        transactionLogs: Include other logs from the same transaction
-
-    Example:
-        # Get all logs from a specific contract
-        request = LogsRequest(address=['0x742d35Cc6634C0532925a3b8'])
-
-        # Get Transfer events from an ERC-20 contract
-        request = LogsRequest(
-            address=['0x742d35Cc6634C0532925a3b8'],
-            topic0=['0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef']
-        )
+        topic1: List of first indexed parameter values
+        topic2: List of second indexed parameter values
+        topic3: List of third indexed parameter values
+        transaction: Fetch parent transactions for matching logs
+        transactionTraces: Fetch traces for parent transactions
+        transactionLogs: Fetch all logs emitted by parent transactions
     """
 
     address: Optional[list[str]] = None
@@ -100,61 +69,89 @@ class LogsRequest:
     transactionLogs: bool = False
 
     @classmethod
-    def from_contract(cls, address: str) -> "LogsRequest":
-        """Create a request to get all logs from a specific contract."""
-        return cls(address=[address])
-
-    @classmethod
-    def transfer_event(
-            cls, token_address: str, include_transaction: bool = True
-    ) -> "LogsRequest":
+    def transfer_event(cls, token_address: str) -> "LogsRequest":
         """Create a request for ERC-20 Transfer events."""
         return cls(
             address=[token_address],
             topic0=[
                 "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
             ],
-            transaction=include_transaction,
         )
-
-
-@dataclass(frozen=True, kw_only=True)
-class StateDiffsRequest:
-    """
-    Request for filtering state changes (storage modifications).
-
-    Args:
-        address: List of contract addresses whose storage was modified
-
-    Example:
-        # Get state changes for a specific contract
-        request = StateDiffsRequest(address=['0x742d35Cc6634C0532925a3b8'])
-    """
-
-    address: Optional[list[str]] = None
-
-    @classmethod
-    def for_contract(cls, address: str) -> "StateDiffsRequest":
-        """Create a request to get state changes for a specific contract."""
-        return cls(address=[address])
 
 
 @dataclass(frozen=True, kw_only=True)
 class TracesRequest:
     """
-    Request for filtering transaction execution traces.
+    Request for filtering transaction execution traces (per OpenAPI spec).
 
     Args:
-        address: List of contract addresses that were called during execution
+        type: Type of trace (create, call, suicide, reward)
+        createFrom: Address initiating a create trace
+        callFrom: Address initiating a call trace
+        callTo: Address receiving a call trace
+        callSighash: Function signature hash for call traces
+        suicideRefundAddress: Refund address for suicide traces
+        rewardAuthor: Author receiving a reward trace
+        transaction: Fetch parent transactions for matching traces
+        transactionLogs: Fetch all logs emitted by parent transactions
+        subtraces: Fetch all subtraces of matching traces
+        parents: Fetch parent traces of matching traces
+    """
 
-    Example:
-        # Get traces involving a specific contract
-        request = TracesRequest(address=['0x742d35Cc6634C0532925a3b8'])
+    type: Optional[list[str]] = None  # create, call, suicide, reward
+    createFrom: Optional[list[str]] = None
+    callFrom: Optional[list[str]] = None
+    callTo: Optional[list[str]] = None
+    callSighash: Optional[list[str]] = None
+    suicideRefundAddress: Optional[list[str]] = None
+    rewardAuthor: Optional[list[str]] = None
+    transaction: bool = False
+    transactionLogs: bool = False
+    subtraces: bool = False
+    parents: bool = False
+
+    @classmethod
+    def calls_to(cls, address: str) -> "TracesRequest":
+        """Create a request to get call traces to a specific address."""
+        return cls(type=["call"], callTo=[validate_evm_address(address)])
+
+    @classmethod
+    def creates_from(cls, address: str) -> "TracesRequest":
+        """Create a request to get create traces from a specific address."""
+        return cls(type=["create"], createFrom=[validate_evm_address(address)])
+
+
+@dataclass(frozen=True, kw_only=True)
+class StateDiffsRequest:
+    """
+    Request for filtering state changes (per OpenAPI spec).
+
+    Args:
+        address: List of contract/account addresses
+        key: List of storage keys or special keys (balance, code, nonce)
+        kind: Type of state change (=, +, *, -)
+        transaction: Fetch parent transactions for matching state diffs
     """
 
     address: Optional[list[str]] = None
+    key: Optional[list[str]] = None
+    kind: Optional[list[str]] = None  # '=', '+', '*', '-'
+    transaction: bool = False
 
     @classmethod
-    def for_contract(cls, address: str) -> "TracesRequest":
-        """Create a request to get traces for a specific contract."""
-        return cls(address=[address])
+    def for_contract(cls, address: str) -> "StateDiffsRequest":
+        """Create a request to get state changes for a specific contract."""
+        return cls(address=[validate_evm_address(address)])
+
+    @classmethod
+    def balance_changes(cls, address: str) -> "StateDiffsRequest":
+        """Create a request to get balance changes for a specific address."""
+        return cls(address=[validate_evm_address(address)], key=["balance"])
+
+
+__all__ = [
+    "TransactionsRequest",
+    "LogsRequest",
+    "TracesRequest",
+    "StateDiffsRequest",
+]

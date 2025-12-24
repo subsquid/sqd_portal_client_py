@@ -1,101 +1,119 @@
-"""
-EVM Fields for SQD Portal Client
-
-This module provides EVM-specific field definitions for SQD (Subsquid) Network portal queries.
-"""
-
 from enum import StrEnum
 
 
-class EVMFields:
-    """EVM-specific field definitions"""
+# ============================================================================ #
+# EVM Field Definitions (matches SQD API spec exactly)
+# ============================================================================ #
+
+class BlockField(StrEnum):
+    """Available block header fields (per OpenAPI spec)"""
+    hash = "hash"
+    height = "height"
+    number = "number"
+    parentHash = "parentHash"
+    timestamp = "timestamp"
+    nonce = "nonce"
+    sha3Uncles = "sha3Uncles"
+    logsBloom = "logsBloom"
+    transactionsRoot = "transactionsRoot"
+    stateRoot = "stateRoot"
+    receiptsRoot = "receiptsRoot"
+    mixHash = "mixHash"
+    miner = "miner"
+    difficulty = "difficulty"
+    totalDifficulty = "totalDifficulty"
+    extraData = "extraData"
+    size = "size"
+    gasLimit = "gasLimit"
+    gasUsed = "gasUsed"
+    baseFeePerGas = "baseFeePerGas"
+    l1BlockNumber = "l1BlockNumber"
 
 
-    class Block(StrEnum):
-        """Available block fields (must match SQD API field names exactly)"""
+class TransactionField(StrEnum):
+    """Available transaction fields (per OpenAPI spec)"""
+    transactionIndex = "transactionIndex"
+    from_ = "from"
+    to = "to"
+    hash = "hash"
+    gas = "gas"
+    gasPrice = "gasPrice"
+    maxFeePerGas = "maxFeePerGas"
+    maxPriorityFeePerGas = "maxPriorityFeePerGas"
+    input = "input"
+    nonce = "nonce"
+    value = "value"
+    v = "v"
+    r = "r"
+    s = "s"
+    yParity = "yParity"
+    chainId = "chainId"
+    gasUsed = "gasUsed"
+    cumulativeGasUsed = "cumulativeGasUsed"
+    effectiveGasPrice = "effectiveGasPrice"
+    contractAddress = "contractAddress"
+    type = "type"
+    status = "status"
+    sighash = "sighash"
+    # L2-specific fields
+    l1Fee = "l1Fee"
+    l1FeeScalar = "l1FeeScalar"
+    l1GasPrice = "l1GasPrice"
+    l1GasUsed = "l1GasUsed"
+    l1BlobBaseFee = "l1BlobBaseFee"
+    l1BlobBaseFeeScalar = "l1BlobBaseFeeScalar"
+    l1BaseFeeScalar = "l1BaseFeeScalar"
 
-        hash = "hash"
-        number = "number"  # Note: SQD API uses 'number' not 'height'
-        parentHash = "parentHash"
-        timestamp = "timestamp"
-        transactionsRoot = "transactionsRoot"
-        receiptsRoot = "receiptsRoot"
-        stateRoot = "stateRoot"
-        logsBloom = "logsBloom"
-        miner = "miner"
-        size = "size"
-        gasLimit = "gasLimit"
-        gasUsed = "gasUsed"
 
-    class Transaction(StrEnum):
-        """Available transaction fields"""
+class LogField(StrEnum):
+    """Available log fields (per OpenAPI spec)"""
+    logIndex = "logIndex"
+    transactionIndex = "transactionIndex"
+    address = "address"
+    data = "data"
+    topics = "topics"
+    transactionHash = "transactionHash"
 
-        hash = "hash"
-        transactionIndex = "transactionIndex"
-        nonce = "nonce"
-        from_ = "from"
-        to = "to"
-        input = "input"
-        value = "value"
-        gas = "gas"
-        gasPrice = "gasPrice"
-        maxFeePerGas = "maxFeePerGas"
-        maxPriorityFeePerGas = "maxPriorityFeePerGas"
-        v = "v"
-        r = "r"
-        s = "s"
-        yParity = "yParity"
-        chainId = "chainId"
-        sighash = "sighash"
-        contractAddress = "contractAddress"
-        gasUsed = "gasUsed"
-        cumulativeGasUsed = "cumulativeGasUsed"
-        effectiveGasPrice = "effectiveGasPrice"
-        type = "type"
-        status = "status"
-        maxFeePerBlobGas = "maxFeePerBlobGas"
-        blobVersionedHashes = "blobVersionedHashes"
-        l1Fee = "l1Fee"
-        l1FeeScalar = "l1FeeScalar"
-        l1GasPrice = "l1GasPrice"
-        l1GasUsed = "l1GasUsed"
-        l1BlobBaseFee = "l1BlobBaseFee"
-        l1BlobBaseFeeScalar = "l1BlobBaseFeeScalar"
-        l1BaseFeeScalar = "l1BaseFeeScalar"
 
-    class Log(StrEnum):
-        """Available log fields"""
+class TraceField(StrEnum):
+    """Available trace fields (per OpenAPI spec)"""
+    transactionIndex = "transactionIndex"
+    traceAddress = "traceAddress"
+    type = "type"
+    subtraces = "subtraces"
+    error = "error"
+    # Create trace fields
+    createFrom = "createFrom"
+    createValue = "createValue"
+    createGas = "createGas"
+    createInit = "createInit"
+    createResultGasUsed = "createResultGasUsed"
+    createResultCode = "createResultCode"
+    createResultAddress = "createResultAddress"
+    # Call trace fields
+    callFrom = "callFrom"
+    callTo = "callTo"
+    callValue = "callValue"
+    callGas = "callGas"
+    callSighash = "callSighash"
+    callInput = "callInput"
+    callResultGasUsed = "callResultGasUsed"
+    callResultOutput = "callResultOutput"
+    # Suicide trace fields
+    suicideAddress = "suicideAddress"
+    suicideRefundAddress = "suicideRefundAddress"
+    suicideBalance = "suicideBalance"
+    # Reward trace fields
+    rewardAuthor = "rewardAuthor"
+    rewardValue = "rewardValue"
+    rewardType = "rewardType"
 
-        logIndex = "logIndex"
-        transactionIndex = "transactionIndex"
-        transactionHash = "transactionHash"
-        address = "address"
-        data = "data"
-        topics = "topics"
 
-    class StateDiff(StrEnum):
-        """Available state diff fields"""
-
-        transactionIndex = "transactionIndex"
-
-    class Trace(StrEnum):
-        """Available trace fields"""
-
-        transactionIndex = "transactionIndex"
-        traceAddress = "traceAddress"
-    
-    def __init__(self, fields_set):
-        self._fields = fields_set
-    
-    @classmethod
-    def minimal_fields(cls):
-        return EVMFields({EVMFields.Block.number})
-
-    def to_dict(self):
-        """Convert fields to dictionary format for SQD API"""
-        if isinstance(self, set):
-            # Handle legacy set format
-            return {field.value for field in self}
-        else:
-            # Handle EVMFields object
-            return {field.value for field in self._fields}
+class StateDiffField(StrEnum):
+    """Available state diff fields (per OpenAPI spec)"""
+    transactionIndex = "transactionIndex"
+    address = "address"
+    key = "key"
+    kind = "kind"
+    prev = "prev"
+    next = "next"

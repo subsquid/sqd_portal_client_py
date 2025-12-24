@@ -4,15 +4,11 @@ Solana Request classes for SQD Portal Client
 This module provides Solana-specific request classes for filtering blockchain data.
 """
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from typing import Optional
 
 from sqd_portal_client_evm.utils import _request_to_sqd_string
 
-try:
-    import ujson as json_lib
-except ImportError:
-    import json as json_lib
 
 @dataclass(frozen=True, kw_only=True)
 class InstructionsRequest:

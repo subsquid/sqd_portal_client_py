@@ -4,19 +4,24 @@ EVM Query Package
 This package provides EVM-specific query functionality for the SQD Portal Client.
 """
 
+from .fields import BlockField, TransactionField, LogField, TraceField, StateDiffField
 from .requests import (
     TransactionsRequest,
     LogsRequest,
     StateDiffsRequest,
     TracesRequest,
 )
-from .fields import EVMFields
 
 __all__ = [
+    # Request classes
     "TransactionsRequest",
     "LogsRequest",
     "StateDiffsRequest",
     "TracesRequest",
-    "EVMFields",
+    # Field enums
+    "BlockField",
+    "TransactionField",
+    "LogField",
+    "TraceField",
+    "StateDiffField",
 ]
-
