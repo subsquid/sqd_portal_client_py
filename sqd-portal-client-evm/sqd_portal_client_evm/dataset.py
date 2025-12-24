@@ -8,5 +8,8 @@ class EvmDataset(StrEnum):
 
 class SolanaDataset(StrEnum):
     SOLANA = "solana-mainnet"
-    
-Dataset = EvmDataset | SolanaDataset
+
+class Dataset:
+    EVM = EvmDataset
+    SOLANA = SolanaDataset
+

@@ -38,7 +38,7 @@ def SQD(
 
 def SQD(
     *,
-    dataset: Dataset,
+    dataset: Dataset.EVM | Dataset.SOLANA | str,
     portal_url: str = "https://portal.sqd.dev",
     stream_type: Literal["finalized", "realtime"] = "realtime",
 ) -> EVMQueryFactory | SolanaQueryFactory:

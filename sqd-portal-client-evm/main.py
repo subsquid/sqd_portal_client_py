@@ -3,7 +3,7 @@ from sqd_portal_client_evm import SQD, Dataset, TransactionField, LogField
 
 
 async def main():
-    sqd = SQD(dataset=Dataset.ETHEREUM, portal_url="https://portal.sqd.dev")
+    sqd = SQD(dataset=Dataset.EVM.ETHEREUM, portal_url="https://portal.sqd.dev")
     query = sqd.get_transactions(
         address="0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
         from_block=17_000_000,
