@@ -2,7 +2,7 @@ from dataclasses import asdict
 
 from loguru import logger
 
-from sqd_portal_client_evm.dataset import Dataset
+from sqd.dataset import Dataset
 
 
 def _request_to_sqd_string(r) -> dict:

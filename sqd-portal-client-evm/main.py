@@ -1,7 +1,7 @@
 from loguru import logger
 import asyncio
 
-from sqd_portal_client_evm import SQD, Dataset, EvmFields
+from sqd import SQD, Dataset, EvmFields
 
 
 async def main():

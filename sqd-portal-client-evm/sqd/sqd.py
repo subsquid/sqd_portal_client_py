@@ -1,9 +1,9 @@
 from typing import overload, Literal
 
-from sqd_portal_client_evm.dataset import SolanaDataset, EvmDataset, Dataset
-from sqd_portal_client_evm.query.evm.query import EVMQuery
-from sqd_portal_client_evm.query.solana.query import SolanaQuery
-from sqd_portal_client_evm.utils import _normalize_dataset
+from sqd.dataset import SolanaDataset, EvmDataset, Dataset
+from sqd.query.evm.query import EVMQuery
+from sqd.query.solana.query import SolanaQuery
+from sqd.utils import _normalize_dataset
 
 
 @overload

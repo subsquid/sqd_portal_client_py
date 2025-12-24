@@ -1,21 +1,21 @@
 from dataclasses import dataclass, field
 from typing import Dict, Literal, Optional, Sequence, Tuple
 
-from sqd_portal_client_evm.query.base_query import BaseSQDQuery
-from sqd_portal_client_evm.query.evm.fields import (
+from sqd.query.base_query import BaseSQDQuery
+from sqd.query.evm.fields import (
     TransactionField,
     LogField,
     TraceField,
     StateDiffField,
     BlockField,
 )
-from sqd_portal_client_evm.query.evm.requests import (
+from sqd.query.evm.requests import (
     TransactionsRequest,
     LogsRequest,
     StateDiffsRequest,
     TracesRequest,
 )
-from sqd_portal_client_evm.utils import _request_to_sqd_string, validate_evm_address
+from sqd.utils import _request_to_sqd_string, validate_evm_address
 
 
 # ============================================================================ #

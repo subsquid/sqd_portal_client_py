@@ -7,7 +7,7 @@ This module provides Solana-specific request classes for filtering blockchain da
 from dataclasses import dataclass
 from typing import Optional
 
-from sqd_portal_client_evm.utils import _request_to_sqd_string
+from sqd.utils import _request_to_sqd_string
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -8,7 +8,7 @@ All fields and options match the SQD Portal OpenAPI specification.
 from dataclasses import dataclass
 from typing import Optional
 
-from sqd_portal_client_evm.utils import validate_evm_address
+from sqd.utils import validate_evm_address
 
 
 @dataclass(frozen=True, kw_only=True)

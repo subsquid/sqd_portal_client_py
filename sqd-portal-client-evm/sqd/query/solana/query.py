@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Dict, Literal, Optional, Sequence, Tuple
 
-from sqd_portal_client_evm.query.base_query import BaseSQDQuery
-from sqd_portal_client_evm.query.solana.fields import (
+from sqd.query.base_query import BaseSQDQuery
+from sqd.query.solana.fields import (
     InstructionField,
     SolanaTransactionField,
     BalanceField,
@@ -11,7 +11,7 @@ from sqd_portal_client_evm.query.solana.fields import (
     SolanaLogField,
     SolanaBlockField,
 )
-from sqd_portal_client_evm.query.solana.requests import (
+from sqd.query.solana.requests import (
     InstructionsRequest,
     SolanaTransactionsRequest,
     BalancesRequest,
@@ -19,7 +19,7 @@ from sqd_portal_client_evm.query.solana.requests import (
     RewardsRequest,
     SolanaLogsRequest,
 )
-from sqd_portal_client_evm.utils import _request_to_sqd_string
+from sqd.utils import _request_to_sqd_string
 
 
 # ============================================================================ #
