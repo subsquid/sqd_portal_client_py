@@ -3,4 +3,4 @@
 .idea
 venv
 .venv
-/sqd-portal-client-evm/pipes-sdk-main/
+pipes-sdk-main/

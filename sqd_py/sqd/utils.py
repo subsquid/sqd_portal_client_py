@@ -1,8 +1,10 @@
 from dataclasses import asdict
 
-from loguru import logger
+from logging import getLogger
 
 from sqd.dataset import Dataset
+
+logger = getLogger()
 
 
 def _request_to_sqd_string(r) -> dict:
@@ -25,7 +27,7 @@ def _normalize_dataset(dataset: Dataset | str) -> Dataset | str:
         return Dataset(dataset)
     except ValueError:
         logger.warning(
-            "Dataset '{}' is not recognized and may lead to unexpected behavior.",
+            "Dataset '%s' is not recognized and may lead to unexpected behavior.",
             dataset,
         )
         return dataset

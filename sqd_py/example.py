@@ -1,7 +1,9 @@
-from loguru import logger
 import asyncio
+from logging import getLogger
 
 from sqd import SQD, Dataset, EvmFields
+
+logger = getLogger(__name__)
 
 
 async def main():
