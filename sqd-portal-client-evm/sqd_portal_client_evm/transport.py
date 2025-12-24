@@ -1,4 +1,8 @@
 import requests
+from typing import Optional
+
+import aiohttp
+from loguru import logger
 
 try:
     import ujson as json_lib
@@ -9,8 +13,6 @@ except ImportError:
 
     json_lib = std_json
     JSONDecodeError = std_json.JSONDecodeError
-import aiohttp
-from typing import Optional
 
 
 def fetch_query_output(portal_endpoint_url: str, query: str) -> tuple[list[dict], dict]:
@@ -57,7 +59,7 @@ def fetch_query_output(portal_endpoint_url: str, query: str) -> tuple[list[dict]
         )
 
     response_text = resp.text
-    print(response_text)
+    logger.trace("Response: {}", response_text[:500] if len(response_text) > 500 else response_text)
 
     # Handle empty response
     if not response_text.strip():
@@ -144,7 +146,7 @@ async def fetch_query_output_async(
                 )
 
             response_text = await resp.text()
-            print(response_text)
+            logger.trace("Async response: {}", response_text[:500] if len(response_text) > 500 else response_text)
 
             # Handle empty response
             if not response_text.strip():

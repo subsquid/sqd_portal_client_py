@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from typing import Literal, overload
 
-from sqd_portal_client_evm.query.evm_factory import EVMQueryFactory
-from sqd_portal_client_evm.query.solana_factory import SolanaQueryFactory
 from .base_query import BaseSQDQuery
-from .evm_query import LogField, TransactionField
+from .evm_query import EVMQuery, LogField, TransactionField
 from .solana_query import (
+    SolanaQuery,
     BalanceField,
     InstructionField,
     RewardField,
@@ -16,63 +15,71 @@ from .solana_query import (
     TokenBalanceField,
 )
 from ..dataset import SolanaDataset, EvmDataset, Dataset
+from ..utils import _normalize_dataset
 
 
 @overload
 def SQD(
     *,
-    dataset: SolanaDataset,
+    dataset: SolanaDataset | Literal['solana-mainnet'],
     portal_url: str = "https://portal.sqd.dev",
     stream_type: Literal["finalized", "realtime"] = "realtime",
-) -> SolanaQueryFactory: ...
+) -> SolanaQuery: ...
 
 
 @overload
 def SQD(
     *,
-    dataset: EvmDataset,
+    dataset: EvmDataset | str,
     portal_url: str = "https://portal.sqd.dev",
     stream_type: Literal["finalized", "realtime"] = "realtime",
-) -> EVMQueryFactory: ...
+) -> EVMQuery: ...
 
 
 def SQD(
     *,
-    dataset: Dataset.EVM | Dataset.SOLANA | str,
+    dataset: Dataset | str,
     portal_url: str = "https://portal.sqd.dev",
     stream_type: Literal["finalized", "realtime"] = "realtime",
-) -> EVMQueryFactory | SolanaQueryFactory:
+) -> EVMQuery | SolanaQuery:
     """
-    Return the strongly typed query builder that matches the selected dataset.
-    ```
-    sqd = SQD(dataset=Dataset.ETHEREUM)
-    sqd.get_transactions(...)
-    ```
+    Create a query builder for the specified dataset.
+    
+    This is the main entry point for building SQD queries.
+    
+    Args:
+        dataset: Dataset to query (e.g., 'ethereum-mainnet', 'arbitrum-one', 'solana-mainnet')
+        portal_url: SQD portal URL
+        stream_type: Type of stream ('finalized' or 'realtime')
+        
+    Returns:
+        EVMQuery for EVM chains or SolanaQuery for Solana
+        
+    Example:
+        sqd = SQD(dataset='ethereum-mainnet')
+        query = sqd.get_transactions(from_block=17_000_000, address='0x...')
+        async for tx in query:
+            print(tx)
     """
-    dataset_enum = _normalize_dataset(dataset)
-    query_type = _infer_query_type(dataset_enum)
-    if query_type == "solana":
-        return SolanaQueryFactory(
-            dataset=dataset_enum, portal_url=portal_url, stream_type=stream_type
+    dataset_str = str(_normalize_dataset(dataset))
+    
+    if _is_solana(dataset_str):
+        return SolanaQuery.create(
+            dataset=dataset_str,
+            portal_url=portal_url,
+            stream_type=stream_type,
         )
-    return EVMQueryFactory(
-        dataset=dataset_enum, portal_url=portal_url, stream_type=stream_type
-    )
+    else:
+        return EVMQuery.create(
+            dataset=dataset_str,
+            portal_url=portal_url,
+            stream_type=stream_type,
+        )
 
 
-def _normalize_dataset(dataset: Dataset | str) -> Dataset:
-    if isinstance(dataset, Dataset):
-        return dataset
-    try:
-        return Dataset(dataset)
-    except ValueError as exc:
-        raise ValueError(f"Unsupported dataset '{dataset}'") from exc
-
-
-def _infer_query_type(dataset: Dataset) -> Literal["evm", "solana"]:
-    if "solana" in dataset.value.lower():
-        return "solana"
-    return "evm"
+def _is_solana(dataset: str) -> bool:
+    """Check if the dataset is a Solana dataset."""
+    return "solana" in dataset.lower()
 
 
 SQDQuery = BaseSQDQuery

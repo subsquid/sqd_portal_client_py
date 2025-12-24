@@ -9,15 +9,14 @@ from .requests import (
     LogsRequest,
     StateDiffsRequest,
     TracesRequest,
-    _validate_address,
-    _request_to_sqd_string,
 )
+from .fields import EVMFields
 
 __all__ = [
     "TransactionsRequest",
     "LogsRequest",
     "StateDiffsRequest",
     "TracesRequest",
-    "_validate_address",
-    "_request_to_sqd_string",
+    "EVMFields",
 ]
+

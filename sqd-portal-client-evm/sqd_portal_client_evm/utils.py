@@ -1,5 +1,9 @@
 from dataclasses import asdict
 
+from loguru import logger
+
+from sqd_portal_client_evm.dataset import Dataset
+
 
 def _request_to_sqd_string(r) -> dict:
     """Convert request dataclass to an SQD-compatible payload."""
@@ -12,3 +16,47 @@ def _request_to_sqd_string(r) -> dict:
         for key, value in asdict(r).items()
         if value is not None
     }
+
+
+def _normalize_dataset(dataset: Dataset | str) -> Dataset | str:
+    if isinstance(dataset, Dataset):
+        return dataset
+    try:
+        return Dataset(dataset)
+    except ValueError:
+        logger.warning("Dataset '{}' is not recognized and may lead to unexpected behavior.", dataset)
+        return dataset
+
+def validate_evm_address(address: str) -> str:
+    """
+    Validate and normalize Ethereum address format.
+
+    Args:
+        address: Ethereum address string
+
+    Returns:
+        Normalized address (lowercase, 0x prefix)
+
+    Raises:
+        ValueError: If address format is invalid
+    """
+    if not address:
+        raise ValueError("Address cannot be empty")
+
+    address = address.lower()
+
+    if not address.startswith("0x"):
+        address = "0x" + address
+
+    if len(address) != 42:
+        raise ValueError(
+            f"Invalid address length: {len(address)}. Expected 42 characters (including 0x prefix)"
+        )
+
+    # Basic hex validation
+    try:
+        int(address, 16)
+    except ValueError:
+        raise ValueError(f"Invalid address format: {address}")
+
+    return address

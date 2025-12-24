@@ -3,21 +3,13 @@ from typing import Dict, Any, Optional, List
 
 import aiohttp
 import requests
+from loguru import logger
 
 from .dataset import Dataset
 from .models import BlockHead, StreamResponse
 from .query import SQDQuery
 from .transport import fetch_query_output, fetch_query_output_async
-
-
-def _normalize_dataset(dataset: Dataset | str) -> Dataset:
-    """Ensure dataset inputs are always Dataset enum values."""
-    if isinstance(dataset, Dataset):
-        return dataset
-    try:
-        return Dataset(dataset)
-    except ValueError as exc:
-        raise ValueError(f"Unsupported dataset '{dataset}'") from exc
+from .utils import _normalize_dataset
 
 
 def _as_query_string(query: SQDQuery | str) -> str:
@@ -58,7 +50,7 @@ def get_data(
 
     str_query = _as_query_string(query)
 
-    print(f"Executing query: {str_query}")
+    logger.debug("Executing query: {}", str_query)
     try:
         response_data, response_headers = fetch_query_output(endpoint, str_query)
         return StreamResponse.from_response(response_data, response_headers)
@@ -228,7 +220,7 @@ async def get_data_async(
 
     str_query = _as_query_string(query)
 
-    print(f"Executing async query: {str_query}")
+    logger.debug("Executing async query: {}", str_query)
     try:
         response_data, response_headers = await fetch_query_output_async(
             endpoint, str_query, session
@@ -483,7 +475,8 @@ def get_head(
     Raises:
         ValueError: If the API request fails (with specific error details)
     """
-    endpoint = f"{portal_url}/datasets/{dataset.value}/head"
+    dataset_enum = _normalize_dataset(dataset)
+    endpoint = f"{portal_url}/datasets/{dataset_enum}/head"
 
     try:
         resp = requests.get(endpoint)
@@ -519,7 +512,8 @@ def get_finalized_head(
     Raises:
         ValueError: If the API request fails (with specific error details)
     """
-    endpoint = f"{portal_url}/datasets/{dataset.value}/finalized-head"
+    dataset_enum = _normalize_dataset(dataset)
+    endpoint = f"{portal_url}/datasets/{dataset_enum}/finalized-head"
 
     try:
         resp = requests.get(endpoint)
@@ -565,7 +559,7 @@ def get_stream(
 
     str_query = _as_query_string(query)
 
-    print(f"Executing stream query: {str_query}")
+    logger.debug("Executing stream query: {}", str_query)
     try:
         response_data, response_headers = fetch_query_output(endpoint, str_query)
         return StreamResponse.from_response(response_data, response_headers)
@@ -610,7 +604,7 @@ async def get_stream_async(
 
     str_query = _as_query_string(query)
 
-    print(f"Executing async stream query: {str_query}")
+    logger.debug("Executing async stream query: {}", str_query)
     try:
         response_data, response_headers = await fetch_query_output_async(
             endpoint, str_query, session

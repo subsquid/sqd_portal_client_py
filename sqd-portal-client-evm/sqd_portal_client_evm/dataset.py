@@ -1,15 +1,18 @@
 from enum import StrEnum
+from typing import Literal, TypeAlias
 
 
-class EvmDataset(StrEnum):
+class Dataset(StrEnum):
     ETHEREUM = "ethereum-mainnet"
-    BINANCE = "binance-mainnet"
+    BINANCE  = "binance-mainnet"
+    SOLANA   = "solana-mainnet"
 
 
-class SolanaDataset(StrEnum):
-    SOLANA = "solana-mainnet"
+EvmDataset = Literal[
+    Dataset.ETHEREUM,
+    Dataset.BINANCE,
+]
 
-class Dataset:
-    EVM = EvmDataset
-    SOLANA = SolanaDataset
-
+SolanaDataset: TypeAlias = Literal[
+    Dataset.SOLANA,
+]

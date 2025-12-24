@@ -28,6 +28,3 @@ from .query.solana import (
 )
 
 # Initialize field enums after all imports
-from .base.base import _initialize_field_enums
-
-_initialize_field_enums()

@@ -7,54 +7,12 @@ This module provides EVM-specific request classes for filtering blockchain data.
 from dataclasses import dataclass, asdict
 from typing import Optional
 
+from sqd_portal_client_evm.utils import validate_evm_address
+
 try:
     import ujson as json_lib
 except ImportError:
     import json as json_lib
-
-
-def _validate_address(address: str) -> str:
-    """
-    Validate and normalize Ethereum address format.
-
-    Args:
-        address: Ethereum address string
-
-    Returns:
-        Normalized address (lowercase, 0x prefix)
-
-    Raises:
-        ValueError: If address format is invalid
-    """
-    if not address:
-        raise ValueError("Address cannot be empty")
-
-    address = address.lower()
-
-    if not address.startswith("0x"):
-        address = "0x" + address
-
-    if len(address) != 42:
-        raise ValueError(
-            f"Invalid address length: {len(address)}. Expected 42 characters (including 0x prefix)"
-        )
-
-    # Basic hex validation
-    try:
-        int(address, 16)
-    except ValueError:
-        raise ValueError(f"Invalid address format: {address}")
-
-    return address
-
-
-def _request_to_sqd_string(r) -> dict:
-    """Convert request object to SQD API dict format"""
-
-    def correctFromUnderscore(k: str) -> str:
-        return "from" if k == "from_" else k
-
-    return {correctFromUnderscore(k): v for k, v in asdict(r).items() if v is not None}
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -91,12 +49,12 @@ class TransactionsRequest:
     @classmethod
     def from_address(cls, address: str) -> "TransactionsRequest":
         """Create a request to get all transactions from a specific address."""
-        return cls(from_=[_validate_address(address)])
+        return cls(from_=[validate_evm_address(address)])
 
     @classmethod
     def to_address(cls, address: str) -> "TransactionsRequest":
         """Create a request to get all transactions to a specific address."""
-        return cls(to=[_validate_address(address)])
+        return cls(to=[validate_evm_address(address)])
 
     @classmethod
     def transfer(

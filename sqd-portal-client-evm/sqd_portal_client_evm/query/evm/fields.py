@@ -4,13 +4,14 @@ EVM Fields for SQD Portal Client
 This module provides EVM-specific field definitions for SQD (Subsquid) Network portal queries.
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
 class EVMFields:
     """EVM-specific field definitions"""
 
-    class Block(Enum):
+
+    class Block(StrEnum):
         """Available block fields (must match SQD API field names exactly)"""
 
         hash = "hash"
@@ -26,7 +27,7 @@ class EVMFields:
         gasLimit = "gasLimit"
         gasUsed = "gasUsed"
 
-    class Transaction(Enum):
+    class Transaction(StrEnum):
         """Available transaction fields"""
 
         hash = "hash"
@@ -62,7 +63,7 @@ class EVMFields:
         l1BlobBaseFeeScalar = "l1BlobBaseFeeScalar"
         l1BaseFeeScalar = "l1BaseFeeScalar"
 
-    class Log(Enum):
+    class Log(StrEnum):
         """Available log fields"""
 
         logIndex = "logIndex"
@@ -72,17 +73,20 @@ class EVMFields:
         data = "data"
         topics = "topics"
 
-    class StateDiff(Enum):
+    class StateDiff(StrEnum):
         """Available state diff fields"""
 
         transactionIndex = "transactionIndex"
 
-    class Trace(Enum):
+    class Trace(StrEnum):
         """Available trace fields"""
 
         transactionIndex = "transactionIndex"
         traceAddress = "traceAddress"
-
+    
+    def __init__(self, fields_set):
+        self._fields = fields_set
+    
     @classmethod
     def minimal_fields(cls):
         return EVMFields({EVMFields.Block.number})
@@ -95,6 +99,3 @@ class EVMFields:
         else:
             # Handle EVMFields object
             return {field.value for field in self._fields}
-
-    def __init__(self, fields_set):
-        self._fields = fields_set
