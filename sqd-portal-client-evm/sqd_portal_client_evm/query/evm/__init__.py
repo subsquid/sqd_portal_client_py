@@ -4,7 +4,6 @@ EVM Query Package
 This package provides EVM-specific query functionality for the SQD Portal Client.
 """
 
-from .query_builder import EVMQueryBuilder
 from .requests import (
     TransactionsRequest,
     LogsRequest,
@@ -15,7 +14,6 @@ from .requests import (
 )
 
 __all__ = [
-    "EVMQueryBuilder",
     "TransactionsRequest",
     "LogsRequest",
     "StateDiffsRequest",

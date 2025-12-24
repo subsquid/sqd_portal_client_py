@@ -8,13 +8,38 @@ The package is organized into subpackages:
 - solana/: Solana-specific query builders, fields, and requests
 
 Basic Usage:
-    from sqd_portal_client_evm.query import Query
+    from sqd_portal_client_evm.query import SQD
 
-    # Use the proxy class
-    query = Query.evm.get_transactions(from_address='0x123...', from_block=17000000)
-    query = Query.solana.get_instructions(program_id='11111111111111111111111111111112', from_block=200000000)
+    sqd = SQD(dataset=Dataset.ETHEREUM)
+    query = sqd.get_transactions(address='0x123...', from_block=17_000_000)
+    async for tx in query:
+        print(tx)
 """
 
-from .query import Query
+from .query import (
+    SQD,
+    SQDQuery,
+    TransactionField,
+    LogField,
+    InstructionField,
+    SolanaTransactionField,
+    SolanaLogField,
+    BalanceField,
+    TokenBalanceField,
+    RewardField,
+    SolanaBlockField,
+)
 
-__all__ = ["Query"]
+__all__ = [
+    "SQD",
+    "SQDQuery",
+    "TransactionField",
+    "LogField",
+    "InstructionField",
+    "SolanaTransactionField",
+    "SolanaLogField",
+    "BalanceField",
+    "TokenBalanceField",
+    "RewardField",
+    "SolanaBlockField",
+]

@@ -1,96 +1,43 @@
 import asyncio
-from dataclasses import dataclass
-from typing import List, Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, List
 
 import aiohttp
 import requests
 
 from .dataset import Dataset
-from .query import Query
-from .query.evm import EVMQueryBuilder
-from .query.solana import SolanaQueryBuilder
+from .models import BlockHead, StreamResponse
+from .query import SQDQuery
 from .transport import fetch_query_output, fetch_query_output_async
 
 
-@dataclass
-class DatasetMetadata:
-    """Dataset metadata response from /metadata endpoint."""
-
-    dataset: str
-    aliases: List[str]
-    real_time: bool
-    start_block: int
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "DatasetMetadata":
-        return cls(
-            dataset=data["dataset"],
-            aliases=data["aliases"],
-            real_time=data["real_time"],
-            start_block=data["start_block"],
-        )
+def _normalize_dataset(dataset: Dataset | str) -> Dataset:
+    """Ensure dataset inputs are always Dataset enum values."""
+    if isinstance(dataset, Dataset):
+        return dataset
+    try:
+        return Dataset(dataset)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported dataset '{dataset}'") from exc
 
 
-@dataclass
-class BlockHead:
-    """Block head response from /head and /finalized-head endpoints."""
-
-    number: Optional[int]
-    hash: Optional[str]
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "BlockHead":
-        return cls(number=data.get("number"), hash=data.get("hash"))
-
-
-@dataclass
-class ConflictResponse:
-    """Conflict response from API when there's a parent block hash mismatch."""
-
-    previousBlocks: List[Dict[str, Union[int, str]]]
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ConflictResponse":
-        return cls(previousBlocks=data["previousBlocks"])
-
-
-@dataclass
-class StreamResponse:
-    """Response from streaming endpoints with metadata."""
-
-    data: List[Dict[str, Any]]
-    finalized_head_number: Optional[int] = None
-    finalized_head_hash: Optional[str] = None
-
-    @classmethod
-    def from_response(
-            cls, response_data: List[Dict[str, Any]], response_headers: Dict[str, str]
-    ) -> "StreamResponse":
-        return cls(
-            data=response_data,
-            finalized_head_number=int(
-                response_headers.get("X-Sqd-Finalized-Head-Number", 0)
-            )
-            if response_headers.get("X-Sqd-Finalized-Head-Number")
-            else None,
-            finalized_head_hash=response_headers.get("X-Sqd-Finalized-Head-Hash"),
-        )
+def _as_query_string(query: SQDQuery | str) -> str:
+    return query.to_sqd_string() if isinstance(query, SQDQuery) else query
 
 
 def get_data(
         *,
         dataset: Dataset | str,
-        query: Query | str,
+        query: SQDQuery | str,
         portal_url: str = "https://portal.sqd.dev",
         flattening: Optional[str] = "by_itemtype",
         stream_type: str = "finalized",
-):
+) -> StreamResponse:
     """
     Get data from SQD portal using a query.
 
     Args:
         dataset: Dataset to query (e.g., Dataset.ETHEREUM)
-        query: Query object or query string
+        query: SQDQuery (from `SQD` builder) or raw query string
         portal_url: SQD portal URL
         flattening: Result flattening strategy (deprecated - kept for compatibility)
         stream_type: Type of stream to use ('finalized' or 'stream')
@@ -106,13 +53,10 @@ def get_data(
             f"Invalid stream_type: {stream_type}. Must be 'finalized' or 'stream'"
         )
 
-    endpoint = f"{portal_url}/datasets/{dataset.value}/{stream_type}-stream"
+    dataset_enum = _normalize_dataset(dataset)
+    endpoint = f"{portal_url}/datasets/{dataset_enum.value}/{stream_type}-stream"
 
-    # Convert Query object to string if needed
-    if isinstance(query, (EVMQueryBuilder, SolanaQueryBuilder)):
-        str_query = query.to_sqd_string()
-    else:
-        str_query = query
+    str_query = _as_query_string(query)
 
     print(f"Executing query: {str_query}")
     try:
@@ -141,21 +85,18 @@ def get_data(
         raise ValueError(error_msg) from e
 
 
-def validate_query_format(query: Query | str) -> tuple[bool, str]:
+def validate_query_format(query: SQDQuery | str) -> tuple[bool, str]:
     """
     Validate query format against OpenAPI DataQuery schema and provide helpful feedback.
 
     Args:
-        query: Query object or string to validate
+        query: SQDQuery/EVM/Solana builder or string to validate
 
     Returns:
         Tuple of (is_valid, error_message)
     """
     try:
-        if isinstance(query, Query):
-            query_str = query.to_sqd_string()
-        else:
-            query_str = query
+        query_str = _as_query_string(query)
 
         # Try to parse the JSON to check format
         import json
@@ -166,8 +107,11 @@ def validate_query_format(query: Query | str) -> tuple[bool, str]:
         if "type" not in parsed:
             return False, "Missing required field: 'type'"
 
-        if "from_block" not in parsed:
-            return False, "Missing required field: 'from_block'"
+        if "fromBlock" not in parsed:
+            hint = ""
+            if "from_block" in parsed:
+                hint = " (use camelCase `fromBlock` instead of `from_block`)"
+            return False, "Missing required field: 'fromBlock'" + hint
 
         # Validate field types and values
         query_content = parsed
@@ -181,22 +125,22 @@ def validate_query_format(query: Query | str) -> tuple[bool, str]:
             )
 
         # from_block must be integer >= 0
-        from_block = query_content.get("from_block")
+        from_block = query_content.get("fromBlock")
         if not isinstance(from_block, int) or from_block < 0:
             return (
                 False,
-                f"Invalid from_block: must be non-negative integer, got {from_block}",
+                f"Invalid fromBlock: must be non-negative integer, got {from_block}",
             )
 
         # to_block must be integer >= from_block if provided
-        to_block = query_content.get("to_block")
+        to_block = query_content.get("toBlock")
         if to_block is not None:
             if not isinstance(to_block, int):
-                return False, f"Invalid to_block: must be integer, got {to_block}"
+                return False, f"Invalid toBlock: must be integer, got {to_block}"
             if to_block < from_block:
                 return (
                     False,
-                    f"Invalid to_block: must be >= from_block ({from_block}), got {to_block}",
+                    f"Invalid toBlock: must be >= fromBlock ({from_block}), got {to_block}",
                 )
 
         # parentBlockHash must be string if provided
@@ -231,9 +175,9 @@ def validate_query_format(query: Query | str) -> tuple[bool, str]:
         ]
 
         for request_type in evm_request_types + solana_request_types:
-            requests = query_content.get(
-                f"{request_type}Requests", query_content.get(request_type, [])
-            )
+            requests = query_content.get(request_type)
+            if requests is None:
+                requests = query_content.get(f"{request_type}Requests")
             if requests and not isinstance(requests, list):
                 return (
                     False,
@@ -251,18 +195,18 @@ def validate_query_format(query: Query | str) -> tuple[bool, str]:
 async def get_data_async(
         *,
         dataset: Dataset | str,
-        query: Query | str,
+        query: SQDQuery | str,
         portal_url: str = "https://portal.sqd.dev",
         flattening: Optional[str] = "by_itemtype",
         session: Optional[aiohttp.ClientSession] = None,
         stream_type: str = "finalized",
-):
+) -> StreamResponse:
     """
     Async version of get_data function.
 
     Args:
         dataset: Dataset to query (e.g., Dataset.ETHEREUM)
-        query: Query object or query string
+        query: SQDQuery (from `SQD`) or raw query string
         portal_url: SQD portal URL
         flattening: Result flattening strategy (deprecated - kept for compatibility)
         session: Optional aiohttp session for connection reuse
@@ -279,15 +223,12 @@ async def get_data_async(
             f"Invalid stream_type: {stream_type}. Must be 'finalized' or 'stream'"
         )
 
-    endpoint = f"{portal_url}/datasets/{dataset.value}/{stream_type}-stream"
+    dataset_enum = _normalize_dataset(dataset)
+    endpoint = f"{portal_url}/datasets/{dataset_enum.value}/{stream_type}-stream"
 
-    # Convert Query object to string if needed
-    if isinstance(query, Query):
-        str_query = query.to_sqd_string()
-    else:
-        str_query = query
+    str_query = _as_query_string(query)
 
-        print(f"Executing async query: {str_query}")
+    print(f"Executing async query: {str_query}")
     try:
         response_data, response_headers = await fetch_query_output_async(
             endpoint, str_query, session
@@ -333,13 +274,6 @@ def get_multiple_data(
 
     Returns:
         List of StreamResponse objects in the same order as input queries
-
-    Example:
-        queries = [
-            (Dataset.ETHEREUM, Query.transactions(from_address='0x123...', from_block=1000)),
-            (Dataset.ETHEREUM, Query.logs_from_contract('0x456...', from_block=2000)),
-        ]
-        results = get_multiple_data(queries)
     """
     results = []
     for dataset, query in queries:
@@ -375,13 +309,6 @@ async def get_multiple_data_async(
 
     Returns:
         List of StreamResponse objects in the same order as input queries
-
-    Example:
-        queries = [
-            (Dataset.ETHEREUM, Query.transactions(from_address='0x123...', from_block=1000)),
-            (Dataset.ETHEREUM, Query.logs_from_contract('0x456...', from_block=2000)),
-        ]
-        results = await get_multiple_data_async(queries)
     """
 
     async def execute_query(dataset_query_pair):
@@ -409,7 +336,7 @@ async def get_multiple_data_async(
 
 
 def chain_queries(
-        queries: List[Query],
+        queries: List[SQDQuery],
         dataset: Dataset | str,
         portal_url: str = "https://portal.sqd.dev",
         flattening: Optional[str] = "by_itemtype",
@@ -419,7 +346,7 @@ def chain_queries(
     Execute multiple queries using the same dataset sequentially.
 
     Args:
-        queries: List of Query objects
+        queries: List of SQDQuery objects
         dataset: Dataset to use for all queries
         portal_url: SQD portal URL
         flattening: Result flattening strategy (deprecated - kept for compatibility)
@@ -429,9 +356,10 @@ def chain_queries(
         List of StreamResponse objects
 
     Example:
+        sqd = SQD(dataset=Dataset.ETHEREUM)
         queries = [
-            Query.transactions(from_address='0x123...', from_block=1000, to_block=2000),
-            Query.logs_from_contract('0x456...', from_block=1500, to_block=2500),
+            sqd.get_transactions(address='0x123...', from_block=1000, to_block=2000),
+            sqd.get_logs(address='0x456...', from_block=1500, to_block=2500),
         ]
         results = chain_queries(queries, Dataset.ETHEREUM)
     """
@@ -441,7 +369,7 @@ def chain_queries(
 
 
 async def chain_queries_async(
-        queries: List[Query],
+        queries: List[SQDQuery],
         dataset: Dataset | str,
         portal_url: str = "https://portal.sqd.dev",
         flattening: Optional[str] = "by_itemtype",
@@ -453,7 +381,7 @@ async def chain_queries_async(
     Execute multiple queries using the same dataset concurrently.
 
     Args:
-        queries: List of Query objects
+        queries: List of SQDQuery objects
         dataset: Dataset to use for all queries
         portal_url: SQD portal URL
         flattening: Result flattening strategy (deprecated - kept for compatibility)
@@ -465,9 +393,10 @@ async def chain_queries_async(
         List of StreamResponse objects
 
     Example:
+        sqd = SQD(dataset=Dataset.ETHEREUM)
         queries = [
-            Query.transactions(from_address='0x123...', from_block=1000, to_block=2000),
-            Query.logs_from_contract('0x456...', from_block=1500, to_block=2500),
+            sqd.get_transactions(address='0x123...', from_block=1000, to_block=2000),
+            sqd.get_logs(address='0x456...', from_block=1500, to_block=2500),
         ]
         results = await chain_queries_async(queries, Dataset.ETHEREUM)
     """
@@ -536,81 +465,6 @@ def combine_query_results(
 
     else:
         raise ValueError(f"Unknown combine strategy: {combine_strategy}")
-
-
-def filter_combined_results(
-        combined_results: List[Dict[str, Any]], filters: Optional[Dict[str, Any]] = None
-) -> List[Dict[str, Any]]:
-    """
-    Filter combined query results based on criteria.
-
-    Args:
-        combined_results: Results from combine_query_results (list of data items)
-        filters: Dictionary of field-value pairs to filter by
-
-    Returns:
-        Filtered results (list of data items)
-
-    Example:
-        filters = {'block_height': 17000000, 'address': '0x123...'}
-        filtered = filter_combined_results(combined, filters)
-    """
-    if not filters:
-        return combined_results
-
-    filtered = []
-    for item in combined_results:
-        if isinstance(item, dict):
-            match = True
-            for key, value in filters.items():
-                if key not in item or item[key] != value:
-                    match = False
-                    break
-            if match:
-                filtered.append(item)
-
-    return filtered
-
-
-# =============================================================================
-# NEW ENDPOINT METHODS (based on OpenAPI specification)
-# =============================================================================
-
-
-def get_dataset_metadata(
-        *, dataset: Dataset | str, portal_url: str = "https://portal.sqd.dev"
-) -> DatasetMetadata:
-    """
-    Get dataset metadata including name, aliases, start block, and real-time status.
-
-    Args:
-        dataset: Dataset to query (e.g., Dataset.ETHEREUM)
-        portal_url: SQD portal URL
-
-    Returns:
-        DatasetMetadata object with dataset information
-
-    Raises:
-        ValueError: If the API request fails (with specific error details)
-    """
-    endpoint = f"{portal_url}/datasets/{dataset.value}/metadata"
-
-    try:
-        resp = requests.get(endpoint)
-        if resp.status_code == 404:
-            raise ValueError(f"Dataset not found (404): {resp.text}")
-        elif resp.status_code != 200:
-            raise ValueError(
-                f"API request failed with status {resp.status_code}: {resp.text}"
-            )
-
-        data = resp.json()
-        return DatasetMetadata.from_dict(data)
-    except ValueError:
-        # Re-raise ValueError as-is (it has specific API error info)
-        raise
-    except Exception as e:
-        raise ValueError(f"Failed to get dataset metadata: {e}") from e
 
 
 def get_head(
@@ -688,7 +542,7 @@ def get_finalized_head(
 def get_stream(
         *,
         dataset: Dataset | str,
-        query: Query | str,
+        query: SQDQuery | str,
         portal_url: str = "https://portal.sqd.dev",
         include_all_blocks: bool = False,
 ) -> StreamResponse:
@@ -697,7 +551,7 @@ def get_stream(
 
     Args:
         dataset: Dataset to query (e.g., Dataset.ETHEREUM)
-        query: Query object or query string
+        query: SQDQuery/EVM/Solana builder or query string
         portal_url: SQD portal URL
         include_all_blocks: If true, includes blocks with no matching data
 
@@ -709,11 +563,7 @@ def get_stream(
     """
     endpoint = f"{portal_url}/datasets/{dataset.value}/stream"
 
-    # Convert Query object to string if needed
-    if isinstance(query, Query):
-        str_query = query.to_sqd_string()
-    else:
-        str_query = query
+    str_query = _as_query_string(query)
 
     print(f"Executing stream query: {str_query}")
     try:
@@ -735,7 +585,7 @@ def get_stream(
 async def get_stream_async(
         *,
         dataset: Dataset | str,
-        query: Query | str,
+        query: SQDQuery | str,
         portal_url: str = "https://portal.sqd.dev",
         session: Optional[aiohttp.ClientSession] = None,
         include_all_blocks: bool = False,
@@ -745,7 +595,7 @@ async def get_stream_async(
 
     Args:
         dataset: Dataset to query (e.g., Dataset.ETHEREUM)
-        query: Query object or query string
+        query: SQDQuery/EVM/Solana builder or query string
         portal_url: SQD portal URL
         session: Optional aiohttp session for connection reuse
         include_all_blocks: If true, includes blocks with no matching data
@@ -758,11 +608,7 @@ async def get_stream_async(
     """
     endpoint = f"{portal_url}/datasets/{dataset.value}/stream"
 
-    # Convert Query object to string if needed
-    if isinstance(query, Query):
-        str_query = query.to_sqd_string()
-    else:
-        str_query = query
+    str_query = _as_query_string(query)
 
     print(f"Executing async stream query: {str_query}")
     try:
@@ -793,10 +639,11 @@ class QueryChain:
     Fluent interface for chaining multiple queries together.
 
     Example:
+        sqd = SQD(dataset=Dataset.ETHEREUM)
         chain = QueryChain(Dataset.ETHEREUM)
-        results = (chain
-            .add(Query.transactions(from_address='0x123...', from_block=1000))
-            .add(Query.logs_from_contract('0x456...', from_block=2000))
+        results = (
+            chain.add(sqd.get_transactions(address='0x123...', from_block=1000))
+            .add(sqd.get_logs(address='0x456...', from_block=2000))
             .execute()
         )
     """
@@ -806,9 +653,9 @@ class QueryChain:
     ):
         self.dataset = dataset
         self.portal_url = portal_url
-        self.queries: List[Query] = []
+        self.queries: List[SQDQuery] = []
 
-    def add(self, query: Query) -> "QueryChain":
+    def add(self, query: SQDQuery) -> "QueryChain":
         """Add a query to the chain."""
         self.queries.append(query)
         return self

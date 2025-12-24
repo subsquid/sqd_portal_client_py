@@ -1,18 +1,14 @@
 from dataclasses import asdict
 
-try:
-    import ujson as json_lib
-except ImportError:
-    import json as json_lib
 
+def _request_to_sqd_string(r) -> dict:
+    """Convert request dataclass to an SQD-compatible payload."""
 
-def _request_to_sqd_string(r) -> str:
-    """Convert request object to SQD API string format"""
+    def normalize_key(key: str) -> str:
+        return "from" if key == "from_" else key
 
-    def correctFromUnderscore(k: str) -> str:
-        return "from" if k == "from_" else k
-
-    return json_lib.dumps(
-        {correctFromUnderscore(k): v for k, v in asdict(r).items() if v is not None},
-        separators=(",", ":"),
-    )
+    return {
+        normalize_key(key): value
+        for key, value in asdict(r).items()
+        if value is not None
+    }

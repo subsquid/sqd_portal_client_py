@@ -1,3 +1,6 @@
 *.pyc
 *__pycache__
 .idea
+venv
+.venv
+/sqd-portal-client-evm/pipes-sdk-main/
