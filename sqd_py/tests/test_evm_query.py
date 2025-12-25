@@ -203,6 +203,56 @@ class TestGetLogs:
         assert "logs" in payload
 
 
+class TestGetTransfers:
+    """Tests for get_transfers convenience method."""
+
+    def test_get_transfers_returns_evm_query(self):
+        """Test that get_transfers returns an EVMQuery."""
+        result = EVMQuery.create(dataset="ethereum-mainnet").get_transfers(
+            from_block=17_000_000,
+        )
+
+        assert isinstance(result, EVMQuery)
+
+    def test_get_transfers_uses_transfer_topic(self):
+        """Test that get_transfers uses the correct Transfer event signature."""
+        result = EVMQuery.create(dataset="ethereum-mainnet").get_transfers(
+            from_block=17_000_000,
+        )
+
+        payload = result.to_payload()
+        logs_request = payload["logs"][0]
+        assert "topic0" in logs_request
+        # Transfer(address,address,uint256) signature
+        assert logs_request["topic0"] == [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+        ]
+
+    def test_get_transfers_with_contract_address(self):
+        """Test transfers query filtered by token contract."""
+        result = EVMQuery.create(dataset="ethereum-mainnet").get_transfers(
+            from_block=17_000_000,
+            contract_address="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # USDC
+        )
+
+        payload = result.to_payload()
+        logs_request = payload["logs"][0]
+        assert "address" in logs_request
+
+    def test_get_transfers_with_from_address(self):
+        """Test transfers query filtered by sender address."""
+        result = EVMQuery.create(dataset="ethereum-mainnet").get_transfers(
+            from_block=17_000_000,
+            from_address="0x742d35cc6634c0532925a3b844bc9e7595f5ab12",
+        )
+
+        payload = result.to_payload()
+        logs_request = payload["logs"][0]
+        # Address should be zero-padded to 32 bytes
+        assert "topic1" in logs_request
+        assert logs_request["topic1"][0].startswith("0x000000000000000000000000")
+
+
 class TestGetTraces:
     """Tests for get_traces method."""
 

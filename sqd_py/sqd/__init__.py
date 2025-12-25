@@ -23,11 +23,11 @@ class ColoredFormatter(logging.Formatter):
     """Formatter with ANSI color codes for log levels."""
 
     COLORS = {
-        "DEBUG": "\033[36m",      # Cyan
-        "INFO": "\033[32m",       # Green
-        "WARNING": "\033[33m",    # Yellow
-        "ERROR": "\033[31m",      # Red
-        "CRITICAL": "\033[1;31m", # Bold Red
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
+        "CRITICAL": "\033[1;31m",  # Bold Red
     }
     RESET = "\033[0m"
 
@@ -54,9 +54,6 @@ def setup_logging(level: int = logging.INFO, colors: bool = True) -> None:
         sqd.setup_logging(logging.DEBUG)  # Enable DEBUG level logging
         sqd.setup_logging(colors=False)  # Disable colors
     """
-    # Auto-detect if we should use colors (only for TTY)
-    use_colors = colors and hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
-
     # Remove existing handlers
     root_logger = logging.getLogger()
     for handler in root_logger.handlers[:]:
@@ -64,13 +61,10 @@ def setup_logging(level: int = logging.INFO, colors: bool = True) -> None:
 
     # Use stdout instead of stderr to avoid red text in some terminals
     handler = logging.StreamHandler(sys.stdout)
-    
+
     fmt = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-    if use_colors:
-        handler.setFormatter(ColoredFormatter(fmt))
-    else:
-        handler.setFormatter(logging.Formatter(fmt))
-    
+    handler.setFormatter(ColoredFormatter(fmt))
+
     root_logger.addHandler(handler)
     root_logger.setLevel(level)
 

@@ -181,6 +181,75 @@ class EVMQuery(BaseSQDQuery):
         )
         return query.add_fields("log", include_fields)
 
+    # ERC-20 Transfer event signature: Transfer(address,address,uint256)
+    TRANSFER_TOPIC = (
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+    )
+
+    def get_transfers(
+        self,
+        *,
+        from_block: int,
+        contract_address: Optional[str] = None,
+        from_address: Optional[str] = None,
+        to_address: Optional[str] = None,
+        to_block: Optional[int] = None,
+        include_transaction: bool = False,
+        include_all_blocks: bool = False,
+        parent_block_hash: Optional[str] = None,
+        include_fields: Optional[Sequence[LogField]] = None,
+    ) -> "EVMQuery":
+        """Query ERC-20/ERC-721 Transfer events.
+
+        This is a convenience method that queries Transfer(address,address,uint256) events.
+
+        Args:
+            from_block: Starting block number (required)
+            contract_address: Token contract address to filter by
+            from_address: Filter by sender address (topic1)
+            to_address: Filter by recipient address (topic2)
+            to_block: Ending block number
+            include_transaction: Fetch parent transactions for matching logs
+            include_all_blocks: Include blocks with no matching data
+            parent_block_hash: Expected hash of parent of first block
+            include_fields: Specific log fields to include
+
+        Example:
+            # Get all USDC transfers
+            query = sqd.get_transfers(
+                from_block=17_000_000,
+                contract_address="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            )
+
+            # Get transfers TO a specific address
+            query = sqd.get_transfers(
+                from_block=17_000_000,
+                to_address="0x742d35cc6634c0532925a3b844bc9e7595f5ab12",
+            )
+        """
+        # Pad addresses to 32 bytes (64 hex chars) for topic matching
+        topic1 = None
+        topic2 = None
+        if from_address:
+            addr = validate_evm_address(from_address)
+            topic1 = "0x" + addr[2:].zfill(64).lower()
+        if to_address:
+            addr = validate_evm_address(to_address)
+            topic2 = "0x" + addr[2:].zfill(64).lower()
+
+        return self.get_logs(
+            from_block=from_block,
+            to_block=to_block,
+            address=contract_address,
+            topic0=self.TRANSFER_TOPIC,
+            topic1=topic1,
+            topic2=topic2,
+            include_transaction=include_transaction,
+            include_all_blocks=include_all_blocks,
+            parent_block_hash=parent_block_hash,
+            include_fields=include_fields,
+        )
+
     def get_traces(
         self,
         *,
@@ -270,11 +339,7 @@ class EVMQuery(BaseSQDQuery):
     @staticmethod
     def _default_field_map() -> dict[str, list[str]]:
         return {
-            "block": list(BlockField),
-            "transaction": list(TransactionField),
-            "log": list(LogField),
-            "stateDiff": list(StateDiffField),
-            "trace": list(TraceField),
+            "block": [BlockField.number, BlockField.timestamp],
         }
 
     # ------------------------------------------------------------------ #

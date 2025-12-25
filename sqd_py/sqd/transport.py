@@ -1,20 +1,29 @@
 from logging import getLogger
-from typing import Optional
+from typing import AsyncIterator, Optional
 
 import aiohttp
 import ujson as json_lib
 
 JSONDecodeError = json_lib.JSONDecodeError
 
-logger = getLogger()
+logger = getLogger(__name__)
+
+from tqdm.asyncio import tqdm
 
 
-async def fetch_query_output_async(
+async def stream_query_output_async(
     portal_endpoint_url: str,
     query: str,
     session: Optional[aiohttp.ClientSession] = None,
-) -> tuple[list[dict], dict]:
-    """Async version of fetch_query_output using aiohttp."""
+) -> AsyncIterator[tuple[dict, dict]]:
+    """Stream JSON lines from the API, yielding each line as it arrives.
+
+    Uses chunked reading with manual line buffering to handle arbitrarily
+    large JSON lines that exceed aiohttp's default readline limit.
+
+    Yields:
+        Tuple of (parsed_json_object, response_headers)
+    """
     headers = {
         "Content-Type": "application/json",
         "User-Agent": "sqd_portal_client_py/0",
@@ -28,24 +37,21 @@ async def fetch_query_output_async(
         async with session.post(
             portal_endpoint_url, data=query, headers=headers
         ) as resp:
-            # Check for HTTP errors and handle them according to OpenAPI spec
+            response_headers = dict(resp.headers)
+
+            # Check for HTTP errors
             if resp.status == 204:
-                # No content - requested block range is entirely above available range
-                return [], dict(resp.headers)
+                return  # No content
             elif resp.status == 400:
-                # Bad request - invalid query format or from_block below start_block
                 error_text = await resp.text()
                 raise ValueError(f"Bad request (400): {error_text}")
             elif resp.status == 404:
-                # Dataset not found
                 error_text = await resp.text()
                 raise ValueError(f"Dataset not found (404): {error_text}")
             elif resp.status == 409:
-                # Conflict - parent block hash mismatch
                 error_text = await resp.text()
                 raise ValueError(f"Conflict (409): {error_text}")
             elif resp.status == 429:
-                # Rate limit exceeded
                 error_text = await resp.text()
                 retry_after = resp.headers.get("Retry-After")
                 error_msg = f"Rate limit exceeded (429): {error_text}"
@@ -53,11 +59,9 @@ async def fetch_query_output_async(
                     error_msg += f"\nRetry after: {retry_after} seconds"
                 raise ValueError(error_msg)
             elif resp.status == 500:
-                # Internal server error - don't retry
                 error_text = await resp.text()
                 raise ValueError(f"Internal server error (500): {error_text}")
             elif resp.status == 503:
-                # Service unavailable - retry later
                 error_text = await resp.text()
                 retry_after = resp.headers.get("Retry-After")
                 error_msg = f"Service unavailable (503): {error_text}"
@@ -70,33 +74,59 @@ async def fetch_query_output_async(
                     f"API request failed with status {resp.status}: {error_text}"
                 )
 
-            response_text = await resp.text()
-            logger.debug(
-                "Async response: %s",
-                response_text[:500] if len(response_text) > 500 else response_text,
-            )
+            # Stream using iter_chunks with manual line buffering
+            # This handles arbitrarily large lines without limit
+            buffer = b""
 
-            # Handle empty response
-            if not response_text.strip():
-                return [], dict(resp.headers)
+            async for chunk, _ in resp.content.iter_chunks():
+                buffer += chunk
 
-            # Try to parse as JSON lines
-            try:
-                data = [
-                    json_lib.loads(jline)
-                    for jline in response_text.split("\n")
-                    if jline.strip()
-                ]
-                return data, dict(resp.headers)
-            except JSONDecodeError as e:
-                # If it's not JSON lines, try to parse as single JSON object
-                try:
-                    data = [json_lib.loads(response_text)]
-                    return data, dict(resp.headers)
-                except JSONDecodeError:
-                    raise ValueError(
-                        f"Failed to parse API response as JSON: {response_text[:200]}..."
-                    ) from e
+                # Process complete lines from buffer
+                while b"\n" in buffer:
+                    line, buffer = buffer.split(b"\n", 1)
+                    line_str = line.decode("utf-8").strip()
+                    if line_str:
+                        try:
+                            yield json_lib.loads(line_str), response_headers
+                        except JSONDecodeError as e:
+                            logger.warning("Failed to parse JSON: %s", line_str[:100])
+                            raise ValueError(
+                                f"Failed to parse JSON: {line_str[:200]}"
+                            ) from e
+
+            # Process any remaining content in buffer (last line without newline)
+            if buffer.strip():
+                line_str = buffer.decode("utf-8").strip()
+                if line_str:
+                    try:
+                        yield json_lib.loads(line_str), response_headers
+                    except JSONDecodeError as e:
+                        logger.warning("Failed to parse JSON: %s", line_str[:100])
+                        raise ValueError(
+                            f"Failed to parse JSON: {line_str[:200]}"
+                        ) from e
+
     finally:
         if should_close_session:
             await session.close()
+
+
+async def fetch_query_output_async(
+    portal_endpoint_url: str,
+    query: str,
+    session: Optional[aiohttp.ClientSession] = None,
+) -> tuple[list[dict], dict]:
+    """Fetch all query output at once (non-streaming).
+
+    For large responses, prefer stream_query_output_async.
+    """
+    results = []
+    headers = {}
+
+    async for item, response_headers in stream_query_output_async(
+        portal_endpoint_url, query, session
+    ):
+        results.append(item)
+        headers = response_headers
+
+    return results, headers

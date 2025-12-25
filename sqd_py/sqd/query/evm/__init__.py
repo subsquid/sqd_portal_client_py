@@ -11,6 +11,7 @@ from .requests import (
     StateDiffsRequest,
     TracesRequest,
 )
+from .decode import decode_transfer, format_token_amount, DecodedTransfer
 
 __all__ = [
     # Request classes
@@ -24,4 +25,9 @@ __all__ = [
     "LogField",
     "TraceField",
     "StateDiffField",
+    # Decode helpers
+    "decode_transfer",
+    "format_token_amount",
+    "DecodedTransfer",
 ]
+

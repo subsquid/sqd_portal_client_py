@@ -6,6 +6,8 @@ from enum import StrEnum
 from typing import Dict, FrozenSet, Mapping, Optional, Sequence, TypeVar
 from typing import Literal
 
+from sqd.query.cursor import QueryCursor
+
 
 def _freeze_field_values(
     raw_fields: Dict[str, Sequence[str]],
@@ -49,6 +51,7 @@ class BaseSQDQuery:
             category: The field category (e.g., 'transaction', 'log', 'block')
             fields: Sequence of field enums (e.g., TransactionField.hash)
         """
+
         if not fields:
             return self
 
@@ -99,9 +102,23 @@ class BaseSQDQuery:
         payload = self._base_payload()
         payload.update(self._chain_payload())
 
+        # Start with default fields (always needed for pagination etc)
+        default_fields = self._default_field_map()
+        fields_dict: Dict[str, set[str]] = {
+            category: set(str(f.value) if hasattr(f, 'value') else str(f) for f in fields)
+            for category, fields in default_fields.items()
+        }
+
+        # Merge in user-specified fields
+        for category, field_names in self._fields.items():
+            if category not in fields_dict:
+                fields_dict[category] = set()
+            fields_dict[category].update(str(f) for f in field_names)
+
+        # Convert to payload format
         fields_payload = {
             category: {field_name: True for field_name in sorted(field_names)}
-            for category, field_names in self._fields.items()
+            for category, field_names in fields_dict.items()
             if field_names
         }
         if fields_payload:
@@ -123,9 +140,16 @@ class BaseSQDQuery:
     # Async iterator factory
     # ------------------------------------------------------------------ #
     def __aiter__(self):
-        from .cursor import QueryCursor
-
         return QueryCursor(self)
+
+    def with_progress(self):
+        """Return an async iterator with a progress bar.
+        
+        Example:
+            async for block in query.with_progress():
+                process(block)
+        """
+        return QueryCursor(self, show_progress=True)
 
     # ------------------------------------------------------------------ #
     # Internal helpers

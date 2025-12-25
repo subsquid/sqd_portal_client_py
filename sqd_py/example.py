@@ -2,36 +2,32 @@ import asyncio
 from logging import getLogger
 
 from sqd import SQD, Dataset, EvmFields
+from sqd.query.evm import decode_transfer
 
 logger = getLogger(__name__)
+
+transfers = []
 
 
 async def main():
     sqd = SQD(dataset=Dataset.ETHEREUM, portal_url="https://portal.sqd.dev")
-    query = sqd.get_transactions(
-        address="0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-        from_block=17_000_000,
-        to_block=17_000_010,
-        # Field names now match API spec exactly
-        include_fields=[
-            EvmFields.TransactionField.hash,
-            EvmFields.TransactionField.from_,
-            EvmFields.TransactionField.gasUsed,
-        ],
+    query = sqd.get_transfers(
+        from_block=12649280,
+        to_block=24089500,
+        from_address="0x6d1AeFc047d55C5d08c288a663711F7B7EFD82E0",
+        to_address="0x6d1AeFc047d55C5d08c288a663711F7B7EFD82E0",
+        include_fields=list(EvmFields.LogField),
+        include_all_blocks=False,
+        include_transaction=False,
     )
-    query = query.get_logs(
-        address="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-        from_block=17_000_000,
-        to_block=17_000_010,
-        topic0="0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-        include_fields=[
-            EvmFields.LogField.logIndex,
-            EvmFields.LogField.transactionHash,
-        ],
-    )
-    async for transaction in query:
-        logger.info(transaction)
+
+    # Use with_progress() for a progress bar!
+    async for data in query.with_progress():
+        if data.get("logs", {}):
+            for t in data["logs"]:
+                transfers.append(decode_transfer(t))
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+    print(len(transfers))
