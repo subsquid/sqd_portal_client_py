@@ -2,10 +2,10 @@ import asyncio
 from logging import getLogger
 from typing import Any, AsyncIterator, Dict, Optional
 
-import aiohttp
 from tqdm import tqdm
 
 from ..transport import stream_query_output_async
+from ..utils import create_optimized_session
 
 logger = getLogger(__name__)
 
@@ -20,7 +20,7 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
         self,
         query: "BaseSQDQuery",
         *,
-        session: Optional[aiohttp.ClientSession] = None,
+        session: Optional["aiohttp.ClientSession"] = None,
         show_progress: bool = False,
     ) -> None:
         self._query = query
@@ -71,7 +71,7 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
         while True:
             # Create session if needed
             if self._session is None:
-                self._session = aiohttp.ClientSession()
+                self._session = create_optimized_session()
 
             # Start new request if we don't have an active iterator
             if self._iterator is None:

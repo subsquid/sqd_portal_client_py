@@ -1,6 +1,8 @@
 from dataclasses import asdict
-
 from logging import getLogger
+
+import aiohttp
+import ujson
 
 from sqd.dataset import Dataset
 
@@ -66,3 +68,23 @@ def validate_evm_address(address: str) -> str:
         raise ValueError(f"Invalid address format: {address}")
 
     return address
+
+
+# Optimized connector settings for performance
+def create_optimized_connector() -> aiohttp.TCPConnector:
+    """Create an optimized TCP connector with connection pooling."""
+    return aiohttp.TCPConnector(
+        limit=100,  # Connection pool size
+        limit_per_host=10,  # Per-host limit
+        ttl_dns_cache=300,  # DNS cache TTL
+        enable_cleanup_closed=True,
+        force_close=False,  # Keep connections alive
+    )
+
+
+def create_optimized_session() -> aiohttp.ClientSession:
+    """Create an optimized aiohttp session."""
+    return aiohttp.ClientSession(
+        connector=create_optimized_connector(),
+        json_serialize=ujson.dumps,
+    )

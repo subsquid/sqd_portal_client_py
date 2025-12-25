@@ -4,11 +4,53 @@ from typing import AsyncIterator, Optional
 import aiohttp
 import ujson as json_lib
 
+from sqd.utils import create_optimized_session
+
 JSONDecodeError = json_lib.JSONDecodeError
 
 logger = getLogger(__name__)
 
-from tqdm.asyncio import tqdm
+
+async def handle_response_errors(resp: aiohttp.ClientResponse) -> None:
+    # Check for HTTP errors
+    if resp.status == 204:
+        return  # No content
+    elif resp.status == 400:
+        error_text = await resp.text()
+        raise ValueError(f"Bad request (400): {error_text}")
+    elif resp.status == 404:
+        error_text = await resp.text()
+        raise ValueError(f"Dataset not found (404): {error_text}")
+    elif resp.status == 409:
+        error_text = await resp.text()
+        raise ValueError(f"Conflict (409): {error_text}")
+    elif resp.status == 429:
+        error_text = await resp.text()
+        retry_after = resp.headers.get("Retry-After")
+        error_msg = f"Rate limit exceeded (429): {error_text}"
+        if retry_after:
+            error_msg += f"\nRetry after: {retry_after} seconds"
+        raise ValueError(error_msg)
+    elif resp.status == 500:
+        error_text = await resp.text()
+        raise ValueError(f"Internal server error (500): {error_text}")
+    elif resp.status == 503:
+        error_text = await resp.text()
+        retry_after = resp.headers.get("Retry-After")
+        error_msg = f"Service unavailable (503): {error_text}"
+        if retry_after:
+            error_msg += f"\nRetry after: {retry_after} seconds"
+        raise ValueError(error_msg)
+    elif resp.status != 200:
+        error_text = await resp.text()
+        raise ValueError(f"API request failed with status {resp.status}: {error_text}")
+
+
+headers = {
+    "Content-Type": "application/json",
+    "User-Agent": "sqd_portal_client_py/0",
+    "Accept-Encoding": "gzip",
+}
 
 
 async def stream_query_output_async(
@@ -21,90 +63,65 @@ async def stream_query_output_async(
     Uses chunked reading with manual line buffering to handle arbitrarily
     large JSON lines that exceed aiohttp's default readline limit.
 
+    Performance optimizations:
+    - Accepts gzip/deflate compression
+    - Uses bytearray for efficient buffer operations
+    - Parses JSON directly from bytes (ujson)
+
     Yields:
         Tuple of (parsed_json_object, response_headers)
     """
-    headers = {
-        "Content-Type": "application/json",
-        "User-Agent": "sqd_portal_client_py/0",
-    }
 
     should_close_session = session is None
     if session is None:
-        session = aiohttp.ClientSession()
+        session = create_optimized_session()
 
     try:
         async with session.post(
-            portal_endpoint_url, data=query, headers=headers
+            portal_endpoint_url,
+            data=query,
+            headers=headers,
         ) as resp:
             response_headers = dict(resp.headers)
+            await handle_response_errors(resp)
 
-            # Check for HTTP errors
-            if resp.status == 204:
-                return  # No content
-            elif resp.status == 400:
-                error_text = await resp.text()
-                raise ValueError(f"Bad request (400): {error_text}")
-            elif resp.status == 404:
-                error_text = await resp.text()
-                raise ValueError(f"Dataset not found (404): {error_text}")
-            elif resp.status == 409:
-                error_text = await resp.text()
-                raise ValueError(f"Conflict (409): {error_text}")
-            elif resp.status == 429:
-                error_text = await resp.text()
-                retry_after = resp.headers.get("Retry-After")
-                error_msg = f"Rate limit exceeded (429): {error_text}"
-                if retry_after:
-                    error_msg += f"\nRetry after: {retry_after} seconds"
-                raise ValueError(error_msg)
-            elif resp.status == 500:
-                error_text = await resp.text()
-                raise ValueError(f"Internal server error (500): {error_text}")
-            elif resp.status == 503:
-                error_text = await resp.text()
-                retry_after = resp.headers.get("Retry-After")
-                error_msg = f"Service unavailable (503): {error_text}"
-                if retry_after:
-                    error_msg += f"\nRetry after: {retry_after} seconds"
-                raise ValueError(error_msg)
-            elif resp.status != 200:
-                error_text = await resp.text()
-                raise ValueError(
-                    f"API request failed with status {resp.status}: {error_text}"
-                )
-
-            # Stream using iter_chunks with manual line buffering
-            # This handles arbitrarily large lines without limit
-            buffer = b""
+            buffer = bytearray()
+            newline = ord(b"\n")
 
             async for chunk, _ in resp.content.iter_chunks():
-                buffer += chunk
+                buffer.extend(chunk)
 
                 # Process complete lines from buffer
-                while b"\n" in buffer:
-                    line, buffer = buffer.split(b"\n", 1)
-                    line_str = line.decode("utf-8").strip()
-                    if line_str:
+                while True:
+                    try:
+                        idx = buffer.index(newline)
+                    except ValueError:
+                        break  # No complete line yet
+
+                    line = bytes(buffer[:idx])
+                    del buffer[: idx + 1]
+
+                    if line and not line.isspace():
                         try:
-                            yield json_lib.loads(line_str), response_headers
+                            # ujson can parse bytes directly
+                            yield json_lib.loads(line), response_headers
                         except JSONDecodeError as e:
-                            logger.warning("Failed to parse JSON: %s", line_str[:100])
+                            logger.warning(
+                                "Failed to parse JSON: %s", line[:100].decode()
+                            )
                             raise ValueError(
-                                f"Failed to parse JSON: {line_str[:200]}"
+                                f"Failed to parse JSON: {line[:200].decode()}"
                             ) from e
 
             # Process any remaining content in buffer (last line without newline)
-            if buffer.strip():
-                line_str = buffer.decode("utf-8").strip()
-                if line_str:
-                    try:
-                        yield json_lib.loads(line_str), response_headers
-                    except JSONDecodeError as e:
-                        logger.warning("Failed to parse JSON: %s", line_str[:100])
-                        raise ValueError(
-                            f"Failed to parse JSON: {line_str[:200]}"
-                        ) from e
+            if buffer and not bytes(buffer).isspace():
+                try:
+                    yield json_lib.loads(bytes(buffer)), response_headers
+                except JSONDecodeError as e:
+                    logger.warning("Failed to parse JSON: %s", buffer[:100].decode())
+                    raise ValueError(
+                        f"Failed to parse JSON: {buffer[:200].decode()}"
+                    ) from e
 
     finally:
         if should_close_session:
