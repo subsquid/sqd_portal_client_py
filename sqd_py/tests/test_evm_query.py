@@ -38,6 +38,51 @@ class TestEVMQueryCreation:
         assert query.stream_type == "finalized"
 
 
+class TestGetBlocks:
+    """Tests for get_blocks method."""
+
+    def test_get_blocks_basic(self):
+        """Test basic blocks query."""
+        query = EVMQuery.create(dataset="ethereum-mainnet").get_blocks(
+            from_block=17_000_000,
+        )
+
+        assert query.from_block == 17_000_000
+        assert query.include_all_blocks is True
+
+    def test_get_blocks_with_to_block(self):
+        """Test blocks query with to_block."""
+        query = EVMQuery.create(dataset="ethereum-mainnet").get_blocks(
+            from_block=17_000_000,
+            to_block=17_000_100,
+        )
+
+        assert query.from_block == 17_000_000
+        assert query.to_block == 17_000_100
+
+    def test_get_blocks_with_fields(self):
+        """Test blocks query with specific fields."""
+        query = EVMQuery.create(dataset="ethereum-mainnet").get_blocks(
+            from_block=17_000_000,
+            include_fields=[BlockField.number, BlockField.hash, BlockField.timestamp],
+        )
+
+        payload = query.to_payload()
+        assert "fields" in payload
+        assert "block" in payload["fields"]
+        assert payload["fields"]["block"]["number"] is True
+        assert payload["fields"]["block"]["hash"] is True
+
+    def test_get_blocks_always_includes_all_blocks(self):
+        """Test that get_blocks always sets include_all_blocks=True."""
+        query = EVMQuery.create(dataset="ethereum-mainnet").get_blocks(
+            from_block=17_000_000,
+        )
+
+        payload = query.to_payload()
+        assert payload.get("includeAllBlocks") is True
+
+
 class TestGetTransactions:
     """Tests for get_transactions method."""
 

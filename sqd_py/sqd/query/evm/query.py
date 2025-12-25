@@ -60,6 +60,33 @@ class EVMQuery(BaseSQDQuery):
             query_type="evm",
         )
 
+    def get_blocks(
+        self,
+        *,
+        from_block: int,
+        to_block: Optional[int] = None,
+        parent_block_hash: Optional[str] = None,
+        include_fields: Optional[Sequence[BlockField]] = None,
+    ) -> "EVMQuery":
+        """Query block headers.
+
+        Args:
+            from_block: Starting block number (required)
+            to_block: Ending block number
+            parent_block_hash: Expected hash of parent of first block (for chain continuity)
+            include_fields: Specific block fields to include
+
+        Returns:
+            EVMQuery configured to fetch blocks
+        """
+        query = self._copy(
+            from_block=from_block,
+            to_block=to_block,
+            include_all_blocks=True,  # Always include blocks for this query type
+            parent_block_hash=parent_block_hash,
+        )
+        return query.add_fields("block", include_fields)
+
     def get_transactions(
         self,
         *,
