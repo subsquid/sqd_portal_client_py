@@ -142,14 +142,18 @@ class BaseSQDQuery:
     def __aiter__(self):
         return QueryCursor(self)
 
-    def with_progress(self):
+    def with_progress(self, shards: int = 1):
         """Return an async iterator with a progress bar.
+        
+        Args:
+            shards: Number of parallel workers to use for fetching.
+                    Requires to_block to be set for parallel mode.
         
         Example:
             async for block in query.with_progress():
                 process(block)
         """
-        return QueryCursor(self, show_progress=True)
+        return QueryCursor(self, show_progress=True, shards=shards)
 
     # ------------------------------------------------------------------ #
     # Internal helpers

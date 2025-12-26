@@ -4,7 +4,7 @@ from typing import AsyncIterator, Optional
 import aiohttp
 import ujson as json_lib
 
-from sqd.utils import create_optimized_session
+from sqd.utils import create_session
 
 JSONDecodeError = json_lib.JSONDecodeError
 
@@ -67,6 +67,8 @@ async def stream_query_output_async(
     - Accepts gzip/deflate compression
     - Uses bytearray for efficient buffer operations
     - Parses JSON directly from bytes (ujson)
+    - Batches buffer clearing to avoid O(N^2) memory movement
+    - Uses find() instead of index() to avoid exception overhead
 
     Yields:
         Tuple of (parsed_json_object, response_headers)
@@ -74,7 +76,7 @@ async def stream_query_output_async(
 
     should_close_session = session is None
     if session is None:
-        session = create_optimized_session()
+        session = create_session()
 
     try:
         async with session.post(
@@ -91,15 +93,14 @@ async def stream_query_output_async(
             async for chunk, _ in resp.content.iter_chunks():
                 buffer.extend(chunk)
 
-                # Process complete lines from buffer
+                start_offset = 0
                 while True:
-                    try:
-                        idx = buffer.index(newline)
-                    except ValueError:
-                        break  # No complete line yet
+                    idx = buffer.find(newline, start_offset)
+                    if idx == -1:
+                        break
 
-                    line = bytes(buffer[:idx])
-                    del buffer[: idx + 1]
+                    line = buffer[start_offset:idx]
+                    start_offset = idx + 1
 
                     if line and not line.isspace():
                         try:
@@ -113,10 +114,14 @@ async def stream_query_output_async(
                                 f"Failed to parse JSON: {line[:200].decode()}"
                             ) from e
 
+                # Remove processed portion of the buffer in one go
+                if start_offset > 0:
+                    del buffer[:start_offset]
+
             # Process any remaining content in buffer (last line without newline)
-            if buffer and not bytes(buffer).isspace():
+            if buffer and not buffer.isspace():
                 try:
-                    yield json_lib.loads(bytes(buffer)), response_headers
+                    yield json_lib.loads(buffer), response_headers
                 except JSONDecodeError as e:
                     logger.warning("Failed to parse JSON: %s", buffer[:100].decode())
                     raise ValueError(

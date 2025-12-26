@@ -6,28 +6,36 @@ from sqd.query.evm import decode_transfer
 
 logger = getLogger(__name__)
 
-transfers = []
+blocks = []
 
 
 async def main():
     sqd = SQD(dataset=Dataset.ETHEREUM, portal_url="https://portal.sqd.dev")
+    from_block = 12649280
+    to_block = from_block + 100000
     query = sqd.get_transfers(
-        from_block=12649280,
-        to_block=24089500,
-        from_address="0x6d1AeFc047d55C5d08c288a663711F7B7EFD82E0",
-        to_address="0x6d1AeFc047d55C5d08c288a663711F7B7EFD82E0",
+        from_block=from_block,
+        contract_address="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         include_fields=list(EvmFields.LogField),
-        include_all_blocks=False,
+        include_all_blocks=True,
         include_transaction=False,
     )
 
-    # Use with_progress() for a progress bar!
-    async for data in query.with_progress():
-        if data.get("logs", {}):
-            for t in data["logs"]:
-                transfers.append(decode_transfer(t))
+    print(f"Fetching blocks {from_block} to {to_block}...")
+
+    async for data in query.with_progress(shards=5):
+        blocks.append(data["header"]["number"])
+    with open("blocks.txt", "w") as f:
+        for block in blocks:
+            f.write(f"{block}\n")
+
+
+def x():
+    asyncio.run(main())
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
-    print(len(transfers))
+    # execution_time = timeit.timeit(lambda: x(), number=1)
+    # print(execution_time)
+    # print(execution_time / 5)
+    x()

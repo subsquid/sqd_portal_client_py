@@ -71,7 +71,7 @@ def validate_evm_address(address: str) -> str:
 
 
 # Optimized connector settings for performance
-def create_optimized_connector() -> aiohttp.TCPConnector:
+def create_connector() -> aiohttp.TCPConnector:
     """Create an optimized TCP connector with connection pooling."""
     return aiohttp.TCPConnector(
         limit=100,  # Connection pool size
@@ -82,9 +82,9 @@ def create_optimized_connector() -> aiohttp.TCPConnector:
     )
 
 
-def create_optimized_session() -> aiohttp.ClientSession:
+def create_session() -> aiohttp.ClientSession:
     """Create an optimized aiohttp session."""
     return aiohttp.ClientSession(
-        connector=create_optimized_connector(),
+        connector=create_connector(),
         json_serialize=ujson.dumps,
     )

@@ -91,6 +91,7 @@ addopts = "-v --tb=short"
 asyncio_mode = "auto"
 markers = [
     "asyncio: marks tests as async (using asyncio)",
+    "integration: marks tests that require network access (deselect with '-m not integration')",
 ]
 
 [tool.ruff]
@@ -106,3 +107,9 @@ python_version = "3.10"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+]
