@@ -15,6 +15,7 @@ async def main():
     to_block = from_block + 100000
     query = sqd.get_transfers(
         from_block=from_block,
+        to_block=to_block,
         contract_address="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         include_fields=list(EvmFields.LogField),
         include_all_blocks=True,

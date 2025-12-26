@@ -11,6 +11,9 @@ from ..utils import create_session
 
 logger = getLogger(__name__)
 
+# Maximum number of parallel shards (based on benchmarks, 15 is optimal)
+MAX_SHARDS = 15
+
 
 class QueryCursor(AsyncIterator[Dict[str, Any]]):
     """Async iterator that streams query results from the SQD portal.
@@ -32,7 +35,7 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
         self._session = session
         self._owns_session = session is None
         self._show_progress = show_progress and tqdm is not None
-        self._shards = shards
+        self._shards = min(shards, MAX_SHARDS)
 
         # State
         self._current_from_block: int = query.from_block

@@ -71,20 +71,28 @@ def validate_evm_address(address: str) -> str:
 
 
 # Optimized connector settings for performance
-def create_connector() -> aiohttp.TCPConnector:
-    """Create an optimized TCP connector with connection pooling."""
+def create_connector(limit_per_host: int = 50) -> aiohttp.TCPConnector:
+    """Create an optimized TCP connector with connection pooling.
+    
+    Args:
+        limit_per_host: Max concurrent connections per host (default: 50)
+    """
     return aiohttp.TCPConnector(
-        limit=100,  # Connection pool size
-        limit_per_host=10,  # Per-host limit
+        limit=200,  # Total connection pool size
+        limit_per_host=limit_per_host,  # Per-host limit
         ttl_dns_cache=300,  # DNS cache TTL
         enable_cleanup_closed=True,
         force_close=False,  # Keep connections alive
     )
 
 
-def create_session() -> aiohttp.ClientSession:
-    """Create an optimized aiohttp session."""
+def create_session(limit_per_host: int = 50) -> aiohttp.ClientSession:
+    """Create an optimized aiohttp session.
+    
+    Args:
+        limit_per_host: Max concurrent connections per host (default: 50)
+    """
     return aiohttp.ClientSession(
-        connector=create_connector(),
+        connector=create_connector(limit_per_host),
         json_serialize=ujson.dumps,
     )
