@@ -6,7 +6,6 @@ All fields and options match the SQD Portal OpenAPI specification.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 from sqd.utils import validate_evm_address
 
@@ -25,9 +24,9 @@ class TransactionsRequest:
         stateDiffs: Include all state diffs caused by matching transactions
     """
 
-    from_: Optional[list[str]] = None
-    to: Optional[list[str]] = None
-    sighash: Optional[list[str]] = None
+    from_: list[str] | None = None
+    to: list[str] | None = None
+    sighash: list[str] | None = None
     logs: bool = False
     traces: bool = False
     stateDiffs: bool = False
@@ -59,11 +58,11 @@ class LogsRequest:
         transactionLogs: Fetch all logs emitted by parent transactions
     """
 
-    address: Optional[list[str]] = None
-    topic0: Optional[list[str]] = None
-    topic1: Optional[list[str]] = None
-    topic2: Optional[list[str]] = None
-    topic3: Optional[list[str]] = None
+    address: list[str] | None = None
+    topic0: list[str] | None = None
+    topic1: list[str] | None = None
+    topic2: list[str] | None = None
+    topic3: list[str] | None = None
     transaction: bool = False
     transactionTraces: bool = False
     transactionLogs: bool = False
@@ -98,13 +97,13 @@ class TracesRequest:
         parents: Fetch parent traces of matching traces
     """
 
-    type: Optional[list[str]] = None  # create, call, suicide, reward
-    createFrom: Optional[list[str]] = None
-    callFrom: Optional[list[str]] = None
-    callTo: Optional[list[str]] = None
-    callSighash: Optional[list[str]] = None
-    suicideRefundAddress: Optional[list[str]] = None
-    rewardAuthor: Optional[list[str]] = None
+    type: list[str] | None = None  # create, call, suicide, reward
+    createFrom: list[str] | None = None
+    callFrom: list[str] | None = None
+    callTo: list[str] | None = None
+    callSighash: list[str] | None = None
+    suicideRefundAddress: list[str] | None = None
+    rewardAuthor: list[str] | None = None
     transaction: bool = False
     transactionLogs: bool = False
     subtraces: bool = False
@@ -133,9 +132,9 @@ class StateDiffsRequest:
         transaction: Fetch parent transactions for matching state diffs
     """
 
-    address: Optional[list[str]] = None
-    key: Optional[list[str]] = None
-    kind: Optional[list[str]] = None  # '=', '+', '*', '-'
+    address: list[str] | None = None
+    key: list[str] | None = None
+    kind: list[str] | None = None  # '=', '+', '*', '-'
     transaction: bool = False
 
     @classmethod

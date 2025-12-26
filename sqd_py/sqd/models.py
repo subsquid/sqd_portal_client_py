@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 
 @dataclass
@@ -7,12 +7,12 @@ class DatasetMetadata:
     """Dataset metadata response from /metadata endpoint."""
 
     dataset: str
-    aliases: List[str]
+    aliases: list[str]
     real_time: bool
     start_block: int
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "DatasetMetadata":
+    def from_dict(cls, data: dict[str, Any]) -> "DatasetMetadata":
         return cls(
             dataset=data["dataset"],
             aliases=data["aliases"],
@@ -25,11 +25,11 @@ class DatasetMetadata:
 class BlockHead:
     """Block head response from /head and /finalized-head endpoints."""
 
-    number: Optional[int]
-    hash: Optional[str]
+    number: int | None
+    hash: str | None
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "BlockHead":
+    def from_dict(cls, data: dict[str, Any]) -> "BlockHead":
         return cls(number=data.get("number"), hash=data.get("hash"))
 
 
@@ -37,10 +37,10 @@ class BlockHead:
 class ConflictResponse:
     """Conflict response from API when there's a parent block hash mismatch."""
 
-    previousBlocks: List[Dict[str, Union[int, str]]]
+    previousBlocks: list[dict[str, int | str]]
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ConflictResponse":
+    def from_dict(cls, data: dict[str, Any]) -> "ConflictResponse":
         return cls(previousBlocks=data["previousBlocks"])
 
 
@@ -48,13 +48,13 @@ class ConflictResponse:
 class StreamResponse:
     """Response from streaming endpoints with metadata."""
 
-    data: List[Dict[str, Any]]
-    finalized_head_number: Optional[int] = None
-    finalized_head_hash: Optional[str] = None
+    data: list[dict[str, Any]]
+    finalized_head_number: int | None = None
+    finalized_head_hash: str | None = None
 
     @classmethod
     def from_response(
-        cls, response_data: List[Dict[str, Any]], response_headers: Dict[str, str]
+        cls, response_data: list[dict[str, Any]], response_headers: dict[str, str]
     ) -> "StreamResponse":
         return cls(
             data=response_data,

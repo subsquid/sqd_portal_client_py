@@ -170,8 +170,8 @@ class TestBaseSQDQueryFields:
         Test that add_fields returns a new query.
         Query is immutable and a new instance is returned to ensure thread-safety and predictable behavior.
         """
-        from sqd.query.evm.query import EVMQuery
         from sqd.query.evm.fields import TransactionField
+        from sqd.query.evm.query import EVMQuery
 
         query = EVMQuery.create(dataset="ethereum-mainnet")
         new_query = query.add_fields("transaction", [TransactionField.hash])
@@ -180,8 +180,8 @@ class TestBaseSQDQueryFields:
 
     def test_add_fields_adds_to_category(self):
         """Test that add_fields adds fields to the correct category."""
-        from sqd.query.evm.query import EVMQuery
         from sqd.query.evm.fields import TransactionField
+        from sqd.query.evm.query import EVMQuery
 
         query = EVMQuery.create(dataset="ethereum-mainnet")
         updated = query.add_fields(
@@ -261,8 +261,8 @@ class TestBaseSQDQueryPayload:
 
     def test_payload_includes_fields_when_set(self):
         """Test that fields are included in payload."""
-        from sqd.query.evm.query import EVMQuery
         from sqd.query.evm.fields import TransactionField
+        from sqd.query.evm.query import EVMQuery
 
         query = EVMQuery.create(dataset="ethereum-mainnet").get_transactions(
             from_block=17_000_000,
@@ -288,8 +288,8 @@ class TestQueryIteration:
 
     def test_aiter_returns_cursor(self):
         """Test that __aiter__ returns a cursor."""
-        from sqd.query.evm.query import EVMQuery
         from sqd.query.cursor import QueryCursor
+        from sqd.query.evm.query import EVMQuery
 
         query = EVMQuery.create(dataset="ethereum-mainnet")
         cursor = query.__aiter__()

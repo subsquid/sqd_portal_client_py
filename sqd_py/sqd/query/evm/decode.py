@@ -1,6 +1,6 @@
 """EVM decoding utilities for common events and data types."""
 
-from typing import Optional, TypedDict
+from typing import TypedDict
 
 
 class DecodedTransfer(TypedDict):
@@ -10,9 +10,9 @@ class DecodedTransfer(TypedDict):
     from_address: str
     to_address: str
     value: int
-    transaction_hash: Optional[str]
-    log_index: Optional[int]
-    block_number: Optional[int]
+    transaction_hash: str | None
+    log_index: int | None
+    block_number: int | None
 
 
 def decode_transfer(log: dict) -> DecodedTransfer:

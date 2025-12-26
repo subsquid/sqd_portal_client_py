@@ -1,16 +1,15 @@
 """Tests for sqd.query.evm.query module - EVM query builder."""
 
 import json
-import pytest
 
-from sqd.query.evm.query import EVMQuery
 from sqd.query.evm.fields import (
-    TransactionField,
-    LogField,
-    TraceField,
-    StateDiffField,
     BlockField,
+    LogField,
+    StateDiffField,
+    TraceField,
+    TransactionField,
 )
+from sqd.query.evm.query import EVMQuery
 
 
 class TestEVMQueryCreation:

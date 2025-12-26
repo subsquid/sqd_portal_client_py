@@ -207,11 +207,11 @@ class TestQueryCursorClose:
         mock_task = asyncio.create_task(dummy_coro())
         # Let the task start
         await asyncio.sleep(0)
-        
+
         cursor._worker_task = mock_task
 
         await cursor.close()
-        
+
         assert mock_task.cancelled() or mock_task.done()
 
     @pytest.mark.asyncio
@@ -332,14 +332,14 @@ class TestAiter:
 @pytest.mark.integration
 class TestParallelFetchingIntegration:
     """Integration tests for parallel fetching (requires network).
-    
+
     Run with: pytest tests/test_cursor.py -v -m integration
     """
 
     @pytest.mark.asyncio
     async def test_parallel_fetching_no_gaps(self):
         """Test that parallel fetching returns all blocks without gaps.
-        
+
         Based on check_blocks.py verification pattern.
         """
         from sqd import SQD, Dataset
@@ -360,14 +360,14 @@ class TestParallelFetchingIntegration:
 
         # Verify: min matches from_block
         assert min(blocks) == from_block, f"Expected min {from_block}, got {min(blocks)}"
-        
+
         # Verify: max matches to_block
         assert max(blocks) == to_block, f"Expected max {to_block}, got {max(blocks)}"
-        
+
         # Verify: correct count
         expected_count = to_block - from_block + 1
         assert len(blocks) == expected_count, f"Expected {expected_count} blocks, got {len(blocks)}"
-        
+
         # Verify: no gaps (each block follows previous)
         sorted_blocks = sorted(blocks)
         for i, block in enumerate(sorted_blocks):

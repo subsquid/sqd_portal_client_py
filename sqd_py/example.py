@@ -1,9 +1,7 @@
 import asyncio
-import timeit
 from logging import getLogger
 
 from sqd import SQD, Dataset, EvmFields
-from sqd.query.evm import decode_transfer
 
 logger = getLogger(__name__)
 

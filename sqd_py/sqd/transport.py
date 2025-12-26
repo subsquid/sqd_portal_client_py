@@ -1,5 +1,5 @@
+from collections.abc import AsyncIterator
 from logging import getLogger
-from typing import AsyncIterator, Optional
 
 import aiohttp
 import ujson as json_lib
@@ -56,8 +56,8 @@ headers = {
 async def stream_query_output_async(
     portal_endpoint_url: str,
     query: str,
-    session: Optional[aiohttp.ClientSession] = None,
-    timeout: Optional[aiohttp.ClientTimeout] = None,
+    session: aiohttp.ClientSession | None = None,
+    timeout: aiohttp.ClientTimeout | None = None,
 ) -> AsyncIterator[tuple[dict, dict]]:
     """Stream JSON lines from the API, yielding each line as it arrives.
 
@@ -140,7 +140,7 @@ async def stream_query_output_async(
 async def fetch_query_output_async(
     portal_endpoint_url: str,
     query: str,
-    session: Optional[aiohttp.ClientSession] = None,
+    session: aiohttp.ClientSession | None = None,
 ) -> tuple[list[dict], dict]:
     """Fetch all query output at once (non-streaming).
 

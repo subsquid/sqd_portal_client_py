@@ -1,22 +1,22 @@
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Dict, Literal, Optional, Sequence, Tuple
+from typing import Literal
 
 from sqd.query.base_query import BaseSQDQuery
 from sqd.query.evm.fields import (
-    TransactionField,
-    LogField,
-    TraceField,
-    StateDiffField,
     BlockField,
+    LogField,
+    StateDiffField,
+    TraceField,
+    TransactionField,
 )
 from sqd.query.evm.requests import (
-    TransactionsRequest,
     LogsRequest,
     StateDiffsRequest,
     TracesRequest,
+    TransactionsRequest,
 )
 from sqd.utils import _request_to_sqd_string, validate_evm_address
-
 
 # ============================================================================ #
 # EVMQuery
@@ -34,12 +34,12 @@ class EVMQuery(BaseSQDQuery):
             print(block)
     """
 
-    _transactions_requests: Tuple[TransactionsRequest, ...] = field(
+    _transactions_requests: tuple[TransactionsRequest, ...] = field(
         default_factory=tuple
     )
-    _logs_requests: Tuple[LogsRequest, ...] = field(default_factory=tuple)
-    _state_diffs_requests: Tuple[StateDiffsRequest, ...] = field(default_factory=tuple)
-    _traces_requests: Tuple[TracesRequest, ...] = field(default_factory=tuple)
+    _logs_requests: tuple[LogsRequest, ...] = field(default_factory=tuple)
+    _state_diffs_requests: tuple[StateDiffsRequest, ...] = field(default_factory=tuple)
+    _traces_requests: tuple[TracesRequest, ...] = field(default_factory=tuple)
 
     # ------------------------------------------------------------------ #
     # Factory methods
@@ -64,9 +64,9 @@ class EVMQuery(BaseSQDQuery):
         self,
         *,
         from_block: int,
-        to_block: Optional[int] = None,
-        parent_block_hash: Optional[str] = None,
-        include_fields: Optional[Sequence[BlockField]] = None,
+        to_block: int | None = None,
+        parent_block_hash: str | None = None,
+        include_fields: Sequence[BlockField] | None = None,
     ) -> "EVMQuery":
         """Query block headers.
 
@@ -91,17 +91,17 @@ class EVMQuery(BaseSQDQuery):
         self,
         *,
         from_block: int,
-        address: Optional[str] = None,
-        from_address: Optional[str] = None,
-        to_address: Optional[str] = None,
-        sighash: Optional[str] = None,
-        to_block: Optional[int] = None,
+        address: str | None = None,
+        from_address: str | None = None,
+        to_address: str | None = None,
+        sighash: str | None = None,
+        to_block: int | None = None,
         include_logs: bool = False,
         include_traces: bool = False,
         include_state_diffs: bool = False,
         include_all_blocks: bool = False,
-        parent_block_hash: Optional[str] = None,
-        include_fields: Optional[Sequence[TransactionField]] = None,
+        parent_block_hash: str | None = None,
+        include_fields: Sequence[TransactionField] | None = None,
     ) -> "EVMQuery":
         """Query transactions matching the specified criteria.
 
@@ -139,16 +139,16 @@ class EVMQuery(BaseSQDQuery):
         self,
         *,
         from_block: int,
-        address: Optional[str] = None,
-        to_block: Optional[int] = None,
-        topic0: Optional[str] = None,
-        topic1: Optional[str] = None,
-        topic2: Optional[str] = None,
-        topic3: Optional[str] = None,
+        address: str | None = None,
+        to_block: int | None = None,
+        topic0: str | None = None,
+        topic1: str | None = None,
+        topic2: str | None = None,
+        topic3: str | None = None,
         include_transaction: bool = False,
         include_all_blocks: bool = False,
-        parent_block_hash: Optional[str] = None,
-        include_fields: Optional[Sequence[LogField]] = None,
+        parent_block_hash: str | None = None,
+        include_fields: Sequence[LogField] | None = None,
     ) -> "EVMQuery":
         """Query event logs matching the specified criteria.
 
@@ -190,14 +190,14 @@ class EVMQuery(BaseSQDQuery):
         self,
         *,
         from_block: int,
-        contract_address: Optional[str] = None,
-        from_address: Optional[str] = None,
-        to_address: Optional[str] = None,
-        to_block: Optional[int] = None,
+        contract_address: str | None = None,
+        from_address: str | None = None,
+        to_address: str | None = None,
+        to_block: int | None = None,
         include_transaction: bool = False,
         include_all_blocks: bool = False,
-        parent_block_hash: Optional[str] = None,
-        include_fields: Optional[Sequence[LogField]] = None,
+        parent_block_hash: str | None = None,
+        include_fields: Sequence[LogField] | None = None,
     ) -> "EVMQuery":
         """Query ERC-20/ERC-721 Transfer events.
 
@@ -254,16 +254,16 @@ class EVMQuery(BaseSQDQuery):
         self,
         *,
         from_block: int,
-        to_block: Optional[int] = None,
-        type: Optional[Literal["create", "call", "suicide", "reward"]] = None,
-        call_to: Optional[str] = None,
-        call_from: Optional[str] = None,
-        call_sighash: Optional[str] = None,
-        create_from: Optional[str] = None,
+        to_block: int | None = None,
+        type: Literal["create", "call", "suicide", "reward"] | None = None,
+        call_to: str | None = None,
+        call_from: str | None = None,
+        call_sighash: str | None = None,
+        create_from: str | None = None,
         include_transaction: bool = False,
         include_all_blocks: bool = False,
-        parent_block_hash: Optional[str] = None,
-        include_fields: Optional[Sequence[TraceField]] = None,
+        parent_block_hash: str | None = None,
+        include_fields: Sequence[TraceField] | None = None,
     ) -> "EVMQuery":
         """Query traces matching the specified criteria.
 
@@ -300,14 +300,14 @@ class EVMQuery(BaseSQDQuery):
         self,
         *,
         from_block: int,
-        to_block: Optional[int] = None,
-        address: Optional[str] = None,
-        key: Optional[str] = None,
-        kind: Optional[Literal["=", "+", "*", "-"]] = None,
+        to_block: int | None = None,
+        address: str | None = None,
+        key: str | None = None,
+        kind: Literal["=", "+", "*", "-"] | None = None,
         include_transaction: bool = False,
         include_all_blocks: bool = False,
-        parent_block_hash: Optional[str] = None,
-        include_fields: Optional[Sequence[StateDiffField]] = None,
+        parent_block_hash: str | None = None,
+        include_fields: Sequence[StateDiffField] | None = None,
     ) -> "EVMQuery":
         """Query state diffs matching the specified criteria.
 
@@ -348,9 +348,9 @@ class EVMQuery(BaseSQDQuery):
     def add_transactions_request(
         self,
         *,
-        from_address: Optional[str],
-        to_address: Optional[str],
-        sighash: Optional[str],
+        from_address: str | None,
+        to_address: str | None,
+        sighash: str | None,
         include_logs: bool,
         include_traces: bool,
         include_state_diffs: bool,
@@ -370,11 +370,11 @@ class EVMQuery(BaseSQDQuery):
     def add_logs_request(
         self,
         *,
-        address: Optional[str],
-        topic0: Optional[str],
-        topic1: Optional[str],
-        topic2: Optional[str],
-        topic3: Optional[str],
+        address: str | None,
+        topic0: str | None,
+        topic1: str | None,
+        topic2: str | None,
+        topic3: str | None,
         include_transaction: bool = False,
     ) -> "EVMQuery":
         request = LogsRequest(
@@ -390,11 +390,11 @@ class EVMQuery(BaseSQDQuery):
     def add_traces_request(
         self,
         *,
-        type: Optional[str] = None,
-        call_to: Optional[str] = None,
-        call_from: Optional[str] = None,
-        call_sighash: Optional[str] = None,
-        create_from: Optional[str] = None,
+        type: str | None = None,
+        call_to: str | None = None,
+        call_from: str | None = None,
+        call_sighash: str | None = None,
+        create_from: str | None = None,
         include_transaction: bool = False,
     ) -> "EVMQuery":
         request = TracesRequest(
@@ -410,9 +410,9 @@ class EVMQuery(BaseSQDQuery):
     def add_state_diffs_request(
         self,
         *,
-        address: Optional[str] = None,
-        key: Optional[str] = None,
-        kind: Optional[str] = None,
+        address: str | None = None,
+        key: str | None = None,
+        kind: str | None = None,
         include_transaction: bool = False,
     ) -> "EVMQuery":
         request = StateDiffsRequest(
@@ -426,8 +426,8 @@ class EVMQuery(BaseSQDQuery):
     # ------------------------------------------------------------------ #
     # Payload hooks
     # ------------------------------------------------------------------ #
-    def _chain_payload(self) -> Dict[str, object]:
-        payload: Dict[str, object] = {}
+    def _chain_payload(self) -> dict[str, object]:
+        payload: dict[str, object] = {}
         if self._transactions_requests:
             payload["transactions"] = [
                 _request_to_sqd_string(request)

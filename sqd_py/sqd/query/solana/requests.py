@@ -5,7 +5,6 @@ This module provides Solana-specific request classes for filtering blockchain da
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 from sqd.utils import _request_to_sqd_string
 
@@ -29,29 +28,29 @@ class InstructionsRequest:
         logs: Include logs produced by the instruction
     """
 
-    programId: Optional[list[str]] = None
-    d1: Optional[list[str]] = None
-    d2: Optional[list[str]] = None
-    d4: Optional[list[str]] = None
-    d8: Optional[list[str]] = None
-    mentionsAccount: Optional[list[str]] = None
-    a0: Optional[list[str]] = None
-    a1: Optional[list[str]] = None
-    a2: Optional[list[str]] = None
-    a3: Optional[list[str]] = None
-    a4: Optional[list[str]] = None
-    a5: Optional[list[str]] = None
-    a6: Optional[list[str]] = None
-    a7: Optional[list[str]] = None
-    a8: Optional[list[str]] = None
-    a9: Optional[list[str]] = None
-    a10: Optional[list[str]] = None
-    a11: Optional[list[str]] = None
-    a12: Optional[list[str]] = None
-    a13: Optional[list[str]] = None
-    a14: Optional[list[str]] = None
-    a15: Optional[list[str]] = None
-    isCommitted: Optional[bool] = None
+    programId: list[str] | None = None
+    d1: list[str] | None = None
+    d2: list[str] | None = None
+    d4: list[str] | None = None
+    d8: list[str] | None = None
+    mentionsAccount: list[str] | None = None
+    a0: list[str] | None = None
+    a1: list[str] | None = None
+    a2: list[str] | None = None
+    a3: list[str] | None = None
+    a4: list[str] | None = None
+    a5: list[str] | None = None
+    a6: list[str] | None = None
+    a7: list[str] | None = None
+    a8: list[str] | None = None
+    a9: list[str] | None = None
+    a10: list[str] | None = None
+    a11: list[str] | None = None
+    a12: list[str] | None = None
+    a13: list[str] | None = None
+    a14: list[str] | None = None
+    a15: list[str] | None = None
+    isCommitted: bool | None = None
     transaction: bool = False
     transactionBalances: bool = False
     transactionTokenBalances: bool = False
@@ -77,8 +76,8 @@ class SolanaTransactionsRequest:
         logs: Include logs produced by the transaction
     """
 
-    feePayer: Optional[list[str]] = None
-    mentionsAccount: Optional[list[str]] = None
+    feePayer: list[str] | None = None
+    mentionsAccount: list[str] | None = None
     instructions: bool = False
     balances: bool = False
     tokenBalances: bool = False
@@ -99,7 +98,7 @@ class BalancesRequest:
         transactionInstructions: Include instructions from parent transaction
     """
 
-    account: Optional[list[str]] = None
+    account: list[str] | None = None
     transaction: bool = False
     transactionInstructions: bool = False
 
@@ -121,13 +120,13 @@ class TokenBalancesRequest:
         transactionInstructions: Include instructions from parent transaction
     """
 
-    account: Optional[list[str]] = None
-    preProgramId: Optional[list[str]] = None
-    postProgramId: Optional[list[str]] = None
-    preMint: Optional[list[str]] = None
-    postMint: Optional[list[str]] = None
-    preOwner: Optional[list[str]] = None
-    postOwner: Optional[list[str]] = None
+    account: list[str] | None = None
+    preProgramId: list[str] | None = None
+    postProgramId: list[str] | None = None
+    preMint: list[str] | None = None
+    postMint: list[str] | None = None
+    preOwner: list[str] | None = None
+    postOwner: list[str] | None = None
     transaction: bool = False
     transactionInstructions: bool = False
 
@@ -144,7 +143,7 @@ class RewardsRequest:
         pubkey: List of public keys that received rewards
     """
 
-    pubkey: Optional[list[str]] = None
+    pubkey: list[str] | None = None
 
     def to_sqd_string(self):
         return _request_to_sqd_string(self)
@@ -162,8 +161,8 @@ class SolanaLogsRequest:
         transaction: Include parent transaction
     """
 
-    programId: Optional[list[str]] = None
-    kind: Optional[list[str]] = None
+    programId: list[str] | None = None
+    kind: list[str] | None = None
     instruction: bool = False
     transaction: bool = False
 

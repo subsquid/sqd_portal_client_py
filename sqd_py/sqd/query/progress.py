@@ -7,7 +7,7 @@ by following the ProgressHandler protocol.
 
 import sys
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 try:
     from tqdm import tqdm
@@ -17,7 +17,7 @@ except ImportError:
 
 class ProgressHandler(ABC):
     """Abstract base class for progress handlers.
-    
+
     Implement this interface to create custom progress reporting
     for QueryCursor operations.
     """
@@ -27,10 +27,10 @@ class ProgressHandler(ABC):
         self,
         dataset: str,
         from_block: int,
-        to_block: Optional[int],
+        to_block: int | None,
     ) -> None:
         """Called when the cursor starts fetching.
-        
+
         Args:
             dataset: The dataset being queried (e.g., 'ethereum-mainnet')
             from_block: Starting block number
@@ -41,16 +41,16 @@ class ProgressHandler(ABC):
     @abstractmethod
     def on_block(self, block_number: int) -> None:
         """Called when a block is received.
-        
+
         Args:
             block_number: The block number that was just processed
         """
         pass
 
     @abstractmethod
-    def on_switch_to_live(self, last_block: Optional[int]) -> None:
+    def on_switch_to_live(self, last_block: int | None) -> None:
         """Called when switching from catchup to live mode.
-        
+
         Args:
             last_block: The last block processed during catchup
         """
@@ -59,7 +59,7 @@ class ProgressHandler(ABC):
     @abstractmethod
     def on_waiting(self, last_block: int) -> None:
         """Called when waiting for new blocks in live mode.
-        
+
         Args:
             last_block: The last block that was processed
         """
@@ -73,7 +73,7 @@ class ProgressHandler(ABC):
 
 class TqdmProgressHandler(ProgressHandler):
     """Default progress handler using tqdm.
-    
+
     Shows a progress bar during catchup and a live counter
     when in infinite/live mode.
     """
@@ -82,14 +82,14 @@ class TqdmProgressHandler(ProgressHandler):
         self._pbar: Any = None
         self._dataset: str = ""
         self._from_block: int = 0
-        self._to_block: Optional[int] = None
+        self._to_block: int | None = None
         self._is_live_mode: bool = False
 
     def on_start(
         self,
         dataset: str,
         from_block: int,
-        to_block: Optional[int],
+        to_block: int | None,
     ) -> None:
         if tqdm is None:
             return
@@ -137,7 +137,7 @@ class TqdmProgressHandler(ProgressHandler):
             # Infinite mode (not yet live): just increment
             self._pbar.update(1)
 
-    def on_switch_to_live(self, last_block: Optional[int]) -> None:
+    def on_switch_to_live(self, last_block: int | None) -> None:
         if self._pbar is not None:
             self._pbar.close()
 
@@ -169,7 +169,7 @@ class TqdmProgressHandler(ProgressHandler):
 
 class NoopProgressHandler(ProgressHandler):
     """A no-op progress handler that does nothing.
-    
+
     Useful when progress reporting is not desired.
     """
 
@@ -177,14 +177,14 @@ class NoopProgressHandler(ProgressHandler):
         self,
         dataset: str,
         from_block: int,
-        to_block: Optional[int],
+        to_block: int | None,
     ) -> None:
         pass
 
     def on_block(self, block_number: int) -> None:
         pass
 
-    def on_switch_to_live(self, last_block: Optional[int]) -> None:
+    def on_switch_to_live(self, last_block: int | None) -> None:
         pass
 
     def on_waiting(self, last_block: int) -> None:

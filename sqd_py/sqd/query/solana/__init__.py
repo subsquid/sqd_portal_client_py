@@ -4,14 +4,6 @@ Solana Query Package
 This package provides Solana-specific query functionality for the SQD Portal Client.
 """
 
-from .requests import (
-    InstructionsRequest,
-    SolanaTransactionsRequest,
-    BalancesRequest,
-    TokenBalancesRequest,
-    RewardsRequest,
-    SolanaLogsRequest,
-)
 from .fields import (
     BalanceField,
     InstructionField,
@@ -20,6 +12,14 @@ from .fields import (
     SolanaLogField,
     SolanaTransactionField,
     TokenBalanceField,
+)
+from .requests import (
+    BalancesRequest,
+    InstructionsRequest,
+    RewardsRequest,
+    SolanaLogsRequest,
+    SolanaTransactionsRequest,
+    TokenBalancesRequest,
 )
 
 __all__ = [

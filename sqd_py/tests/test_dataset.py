@@ -1,6 +1,6 @@
 """Tests for sqd.dataset module."""
 
-from sqd.dataset import Dataset, EvmDataset, SolanaDataset
+from sqd.dataset import Dataset
 
 
 class TestDataset:

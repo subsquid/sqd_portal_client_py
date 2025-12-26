@@ -1,10 +1,11 @@
 """Tests for sqd.utils module."""
 
-import pytest
 from dataclasses import dataclass
 
-from sqd.utils import validate_evm_address, _normalize_dataset, _request_to_sqd_string
+import pytest
+
 from sqd.dataset import Dataset
+from sqd.utils import _normalize_dataset, _request_to_sqd_string, validate_evm_address
 
 
 class TestValidateEvmAddress:

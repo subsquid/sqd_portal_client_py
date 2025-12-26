@@ -2,7 +2,7 @@
 
 import pytest
 
-from sqd.models import DatasetMetadata, BlockHead, ConflictResponse, StreamResponse
+from sqd.models import BlockHead, ConflictResponse, DatasetMetadata, StreamResponse
 
 
 class TestDatasetMetadata:

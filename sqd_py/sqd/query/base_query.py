@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
-from typing import Dict, FrozenSet, Mapping, Optional, Sequence, TypeVar
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, TypeVar
 
-from sqd.query.cursor import QueryCursor
+if TYPE_CHECKING:
+    from sqd.query.cursor import QueryCursor
 
 
 def _freeze_field_values(
-    raw_fields: Dict[str, Sequence[str]],
-) -> Mapping[str, FrozenSet[str]]:
+    raw_fields: dict[str, Sequence[str]],
+) -> Mapping[str, frozenset[str]]:
     return {category: frozenset(values) for category, values in raw_fields.items()}
 
 
@@ -29,13 +30,13 @@ class BaseSQDQuery:
 
     # Query state
     from_block: int = 0
-    to_block: Optional[int] = None
+    to_block: int | None = None
     query_type: str = ""
-    _fields: Mapping[str, FrozenSet[str]] = field(default_factory=dict)
+    _fields: Mapping[str, frozenset[str]] = field(default_factory=dict)
 
     # API options (per OpenAPI spec)
     include_all_blocks: bool = False
-    parent_block_hash: Optional[str] = None
+    parent_block_hash: str | None = None
 
     @staticmethod
     def _default_field_map():
@@ -44,7 +45,7 @@ class BaseSQDQuery:
     # ------------------------------------------------------------------ #
     # Field helpers
     # ------------------------------------------------------------------ #
-    def add_fields(self: Q, category: str, fields: Optional[Sequence[StrEnum]]) -> Q:
+    def add_fields(self: Q, category: str, fields: Sequence[StrEnum] | None) -> Q:
         """Add specific fields to include in the query response.
 
         Args:
@@ -55,7 +56,7 @@ class BaseSQDQuery:
         if not fields:
             return self
 
-        mutable: Dict[str, set[str]] = {
+        mutable: dict[str, set[str]] = {
             cat: set(values) for cat, values in self._fields.items()
         }
         for f in fields:
@@ -63,7 +64,7 @@ class BaseSQDQuery:
 
         return self.copy(_fields=_freeze_field_values(mutable))
 
-    def _update_block_range(self: Q, from_block: int, to_block: Optional[int]) -> Q:
+    def _update_block_range(self: Q, from_block: int, to_block: int | None) -> Q:
         new_from = (
             min(self.from_block, from_block) if self.from_block >= 0 else from_block
         )
@@ -82,8 +83,8 @@ class BaseSQDQuery:
     # ------------------------------------------------------------------ #
     # Payload helpers
     # ------------------------------------------------------------------ #
-    def _base_payload(self) -> Dict[str, object]:
-        payload: Dict[str, object] = {
+    def _base_payload(self) -> dict[str, object]:
+        payload: dict[str, object] = {
             "type": self.query_type,
             "fromBlock": self.from_block,
         }
@@ -95,16 +96,16 @@ class BaseSQDQuery:
             payload["parentBlockHash"] = self.parent_block_hash
         return payload
 
-    def _chain_payload(self) -> Dict[str, object]:
+    def _chain_payload(self) -> dict[str, object]:
         raise NotImplementedError
 
-    def to_payload(self) -> Dict[str, object]:
+    def to_payload(self) -> dict[str, object]:
         payload = self._base_payload()
         payload.update(self._chain_payload())
 
         # Start with default fields (always needed for pagination etc)
         default_fields = self._default_field_map()
-        fields_dict: Dict[str, set[str]] = {
+        fields_dict: dict[str, set[str]] = {
             category: set(
                 str(f.value) if hasattr(f, "value") else str(f) for f in fields
             )
@@ -141,10 +142,12 @@ class BaseSQDQuery:
     # ------------------------------------------------------------------ #
     # Async iterator factory
     # ------------------------------------------------------------------ #
-    def __aiter__(self):
+    def __aiter__(self) -> "QueryCursor":
+        from sqd.query.cursor import QueryCursor
+
         return QueryCursor(self, shards=15)
 
-    def with_progress(self, *, shards: int = 15):
+    def with_progress(self, *, shards: int = 15) -> "QueryCursor":
         """Return an async iterator with a progress bar.
 
         Args:
@@ -155,6 +158,8 @@ class BaseSQDQuery:
             async for block in query.with_progress():
                 process(block)
         """
+        from sqd.query.cursor import QueryCursor
+
         return QueryCursor(self, show_progress=True, shards=shards)
 
     # ------------------------------------------------------------------ #

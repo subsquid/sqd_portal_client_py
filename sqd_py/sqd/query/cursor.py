@@ -1,11 +1,13 @@
 import asyncio
 import signal
+from collections.abc import AsyncIterator
 from logging import getLogger
-from typing import Any, AsyncIterator, Dict, Optional, Tuple, Union
+from typing import Any
 
 import aiohttp
 
-from sqd.query import ProgressHandler, TqdmProgressHandler, NoopProgressHandler
+from sqd.query import NoopProgressHandler, ProgressHandler, TqdmProgressHandler
+from sqd.query.base_query import BaseSQDQuery
 from sqd.transport import stream_query_output_async
 from sqd.utils import create_session
 
@@ -15,7 +17,7 @@ logger = getLogger(__name__)
 MAX_SHARDS = 15
 
 
-class QueryCursor(AsyncIterator[Dict[str, Any]]):
+class QueryCursor(AsyncIterator[dict[str, Any]]):
     """Async iterator that streams query results from the SQD portal.
 
     Handles pagination automatically - continues fetching until to_block is reached
@@ -27,9 +29,9 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
         self,
         query: "BaseSQDQuery",
         *,
-        session: Optional[aiohttp.ClientSession] = None,
+        session: aiohttp.ClientSession | None = None,
         show_progress: bool = False,
-        progress_handler: Optional[ProgressHandler] = None,
+        progress_handler: ProgressHandler | None = None,
         shards: int = 1,
         poll_interval: float = 5.0,
     ) -> None:
@@ -49,17 +51,17 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
 
         # State
         self._current_from_block: int = query.from_block
-        self._last_block_number: Optional[int] = None
+        self._last_block_number: int | None = None
         self._finished = False
-        self._headers: Dict[str, str] = {}
+        self._headers: dict[str, str] = {}
         self._shutdown_requested = False
         self._closed = False
 
         # Background fetching
         self._queue: asyncio.Queue[
-            Union[Tuple[Dict[str, Any], Dict[str, str]], Exception, None]
+            tuple[dict[str, Any], dict[str, str]] | Exception | None
         ] = asyncio.Queue(maxsize=-1)
-        self._worker_task: Optional[asyncio.Task] = None
+        self._worker_task: asyncio.Task | None = None
 
         # Track max block across parallel shards for correct serial mode resume
         self._max_parallel_block: int = 0
@@ -103,7 +105,7 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
         except asyncio.QueueFull:
             pass
 
-    async def __anext__(self) -> Dict[str, Any]:
+    async def __anext__(self) -> dict[str, Any]:
         if self._worker_task is None:
             self._worker_task = asyncio.create_task(self._fetch_loop())
 
@@ -188,7 +190,7 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
         except Exception as e:
             await self._queue.put(e)
 
-    async def _probe_head_block(self) -> Optional[int]:
+    async def _probe_head_block(self) -> int | None:
         """Get the latest available block number from the /head endpoint."""
         try:
             head_url = f"{self._query.portal_url}/datasets/{self._query.dataset}/head"
@@ -330,7 +332,7 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
             logger.debug("Drained shard %d/%d", i + 1, len(shard_queues))
 
     async def _shard_worker(
-        self, query: "BaseSQDQuery", shard_queue: asyncio.Queue
+        self, query: BaseSQDQuery, shard_queue: asyncio.Queue
     ) -> None:
         """Worker for a specific shard range. Writes to shard-specific queue."""
         current_from = query.from_block
@@ -382,7 +384,7 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
             # Signal completion of this shard
             await shard_queue.put(None)
 
-    def _process_item(self, item: Dict[str, Any]) -> None:
+    def _process_item(self, item: dict[str, Any]) -> None:
         """Extract block number and update progress."""
         header = item.get("header")
         if header:
@@ -461,11 +463,11 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
     # ------------------------------------------------------------------ #
 
     @property
-    def headers(self) -> Dict[str, str]:
+    def headers(self) -> dict[str, str]:
         """Response headers from the last request."""
         return self._headers
 
     @property
-    def last_block_number(self) -> Optional[int]:
+    def last_block_number(self) -> int | None:
         """Last block number received."""
         return self._last_block_number

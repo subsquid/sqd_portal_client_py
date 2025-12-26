@@ -3,10 +3,10 @@
 import logging
 import sys
 
-from .sqd import SQD
 from .dataset import Dataset
-from .query.evm import fields as EvmFields
-from .query.solana import fields as SolanaFields
+from .query.evm import fields as EvmFields  # noqa: N812
+from .query.solana import fields as SolanaFields  # noqa: N812
+from .sqd import SQD
 
 __version__ = "0.1.0"
 __all__ = [

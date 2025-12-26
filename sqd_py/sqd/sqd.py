@@ -1,13 +1,13 @@
-from typing import overload, Literal
+from typing import Literal, overload
 
-from sqd.dataset import SolanaDataset, EvmDataset, Dataset
+from sqd.dataset import Dataset, EvmDataset, SolanaDataset
 from sqd.query.evm.query import EVMQuery
 from sqd.query.solana.query import SolanaQuery
 from sqd.utils import _normalize_dataset
 
 
 @overload
-def SQD(
+def SQD(  # noqa: N802
     *,
     dataset: SolanaDataset | Literal["solana-mainnet"],
     portal_url: str = "https://portal.sqd.dev",
@@ -16,7 +16,7 @@ def SQD(
 
 
 @overload
-def SQD(
+def SQD(  # noqa: N802
     *,
     dataset: EvmDataset | str,
     portal_url: str = "https://portal.sqd.dev",
@@ -24,7 +24,7 @@ def SQD(
 ) -> EVMQuery: ...
 
 
-def SQD(
+def SQD(  # noqa: N802
     *,
     dataset: Dataset | str,
     portal_url: str = "https://portal.sqd.dev",

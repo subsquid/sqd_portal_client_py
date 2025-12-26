@@ -1,6 +1,5 @@
 """Tests for sqd.sqd module - main entry point."""
 
-import pytest
 
 from sqd import SQD
 from sqd.query.evm.query import EVMQuery
