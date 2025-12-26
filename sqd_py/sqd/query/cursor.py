@@ -1,15 +1,13 @@
 import asyncio
 import signal
-import sys
 from logging import getLogger
-from sys import prefix
 from typing import Any, AsyncIterator, Dict, Optional, Tuple, Union
 
 import aiohttp
-from tqdm import tqdm
 
-from ..transport import stream_query_output_async
-from ..utils import create_session
+from sqd.query import ProgressHandler, TqdmProgressHandler, NoopProgressHandler
+from sqd.transport import stream_query_output_async
+from sqd.utils import create_session
 
 logger = getLogger(__name__)
 
@@ -31,15 +29,23 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
         *,
         session: Optional[aiohttp.ClientSession] = None,
         show_progress: bool = False,
+        progress_handler: Optional[ProgressHandler] = None,
         shards: int = 1,
         poll_interval: float = 5.0,
     ) -> None:
         self._query = query
         self._session = session
         self._owns_session = session is None
-        self._show_progress = show_progress and tqdm is not None
         self._shards = min(shards, MAX_SHARDS)
         self._poll_interval = poll_interval
+
+        # Progress handler
+        if progress_handler is not None:
+            self._progress = progress_handler
+        elif show_progress:
+            self._progress = TqdmProgressHandler()
+        else:
+            self._progress = NoopProgressHandler()
 
         # State
         self._current_from_block: int = query.from_block
@@ -48,8 +54,6 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
         self._headers: Dict[str, str] = {}
         self._shutdown_requested = False
         self._closed = False
-        # Progress bar
-        self._pbar: Optional[tqdm] = None
 
         # Background fetching
         self._queue: asyncio.Queue[
@@ -142,9 +146,13 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
                         "Could not discover head block. Falling back to single worker."
                     )
 
-            # Now initialize progress bar with the effective to_block
+            # Initialize progress handler
             self._effective_to_block = effective_to_block
-            self._init_progress_bar_if_needed()
+            self._progress.on_start(
+                dataset=self._query.dataset,
+                from_block=self._query.from_block,
+                to_block=effective_to_block,
+            )
 
             if self._shards > 1 and effective_to_block is not None:
                 # Run parallel workers to catch up
@@ -166,7 +174,7 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
                     )
                     self._current_from_block = resume_from
                     self._last_block_number = self._max_parallel_block  # Sync state
-                    self._switch_to_live_progress()  # Switch to live mode progress bar
+                    self._progress.on_switch_to_live(self._last_block_number)
                     await self._run_serial_worker()
             else:
                 await self._run_serial_worker()
@@ -254,7 +262,8 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
                         self._current_from_block,
                         self._poll_interval,
                     )
-                    self._update_live_progress_waiting()
+                    if self._last_block_number is not None:
+                        self._progress.on_waiting(self._last_block_number)
                     await asyncio.sleep(self._poll_interval)
                 else:
                     logger.info("No more blocks available")
@@ -286,7 +295,7 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
 
             # Each shard gets its own queue with a limit to prevent memory blowup
             # if early shards stall while later ones race ahead
-            shard_queue: asyncio.Queue = asyncio.Queue(maxsize=2000)
+            shard_queue: asyncio.Queue = asyncio.Queue()
             shard_queues.append(shard_queue)
 
             # Create a sub-query for this shard
@@ -352,9 +361,8 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
                             async with self._parallel_lock:
                                 if block_number > self._max_parallel_block:
                                     self._max_parallel_block = block_number
-                            # Update global progress safely
-                            if self._pbar is not None:
-                                self._pbar.update(1)
+                            # Update progress
+                            self._progress.on_block(block_number)
 
                     # Put in shard-specific queue (not main queue)
                     await shard_queue.put((item, headers))
@@ -375,14 +383,13 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
             await shard_queue.put(None)
 
     def _process_item(self, item: Dict[str, Any]) -> None:
-        """Extract block number and update progress (legacy serial)."""
+        """Extract block number and update progress."""
         header = item.get("header")
         if header:
             block_number = header.get("number")
             if block_number is not None:
                 self._last_block_number = block_number
-                if self._pbar is not None:
-                    self._update_progress(block_number)
+                self._progress.on_block(block_number)
 
     def _handle_serial_stream_completion(self) -> None:
         """Advance pagination or mark as finished based on last stream result."""
@@ -398,91 +405,6 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
                 self._finished = True
 
         self._last_block_number = None
-
-    # ------------------------------------------------------------------ #
-    # Progress Bar Handling
-    # ------------------------------------------------------------------ #
-
-    def _init_progress_bar_if_needed(self) -> None:
-        """Initialize tqdm progress bar if enabled."""
-        if not self._show_progress or self._pbar is not None:
-            return
-
-        # Use effective_to_block if available, otherwise fall back to query.to_block
-        to_block = getattr(self, "_effective_to_block", None) or self._query.to_block
-
-        if to_block is not None:
-            # Finite mode: show progress towards to_block
-            total_blocks = to_block - self._query.from_block + 1
-            self._pbar = tqdm(
-                total=total_blocks,
-                desc=f"Syncing {self._query.dataset}",
-                unit="blocks",
-                unit_scale=True,
-                initial=0,
-            )
-        else:
-            # Infinite mode: show block count without total
-            self._pbar = tqdm(
-                desc=f"Syncing {self._query.dataset}",
-                unit="blocks",
-                unit_scale=True,
-            )
-
-    def _update_progress(self, block_number: int) -> None:
-        """Update progress bar."""
-        if self._pbar is not None:
-            if self._pbar.total is not None:
-                # Finite mode: update relative to from_block
-                current_progress = block_number - self._query.from_block + 1
-                delta = current_progress - self._pbar.n
-                if delta > 0:
-                    self._pbar.update(delta)
-                # Show current block in postfix for finite mode
-                self._pbar.set_postfix(block=block_number, refresh=True)
-            else:
-                # Live/infinite mode: just increment by 1 and show block number in desc
-                self._pbar.update(1)
-                self._pbar.set_description_str(
-                    f"{self._query.dataset} | block {block_number} |", refresh=True
-                )
-
-    def close_progress(self) -> None:
-        if self._pbar is not None:
-            self._pbar.close()
-            self._pbar = None
-
-    def _switch_to_live_progress(self) -> None:
-        """Switch from catchup progress bar to live mode showing current block."""
-        if self._pbar is not None:
-            self._pbar.close()
-
-        if self._show_progress:
-            # Use effective_to_block as starting point since parallel workers
-            # don't update _last_block_number
-            last_block = self._last_block_number or getattr(
-                self, "_effective_to_block", None
-            )
-
-            self._pbar = tqdm(
-                total=None,
-                unit="blocks",
-                unit_scale=True,
-                bar_format="Live {desc} {n_fmt} new [{elapsed}, {rate_fmt}]",
-                dynamic_ncols=True,
-                file=sys.stderr,
-            )
-            self._pbar.set_description_str(f"{self._query.dataset}")
-            if last_block is not None:
-                self._last_block_number = last_block  # Sync state
-
-    def _update_live_progress_waiting(self) -> None:
-        """Update live progress bar to show waiting status."""
-        if self._pbar is not None and self._last_block_number is not None:
-            self._pbar.set_description_str(
-                f"{self._query.dataset} | block {self._last_block_number} (waiting...) |"
-            )
-            self._pbar.refresh()
 
     # ------------------------------------------------------------------ #
     # Session Management
@@ -518,7 +440,7 @@ class QueryCursor(AsyncIterator[Dict[str, Any]]):
             except asyncio.CancelledError:
                 pass
 
-        self.close_progress()
+        self._progress.on_close()
         await self._close_session_if_owned()
 
     def _remove_signal_handlers(self) -> None:

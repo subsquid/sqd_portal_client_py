@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from sqd.query.cursor import QueryCursor
+from sqd.query.progress import NoopProgressHandler, TqdmProgressHandler
 
 
 class TestQueryCursorInit:
@@ -30,13 +31,22 @@ class TestQueryCursorInit:
         assert cursor._shards == 5
 
     def test_show_progress_parameter(self):
-        """Test that show_progress parameter is stored."""
+        """Test that show_progress parameter creates TqdmProgressHandler."""
         mock_query = MagicMock()
         mock_query.from_block = 0
         mock_query.to_block = 100
 
         cursor = QueryCursor(mock_query, show_progress=True)
-        assert cursor._show_progress is True
+        assert isinstance(cursor._progress, TqdmProgressHandler)
+
+    def test_no_progress_uses_noop_handler(self):
+        """Test that no progress uses NoopProgressHandler."""
+        mock_query = MagicMock()
+        mock_query.from_block = 0
+        mock_query.to_block = 100
+
+        cursor = QueryCursor(mock_query, show_progress=False)
+        assert isinstance(cursor._progress, NoopProgressHandler)
 
     def test_session_ownership(self):
         """Test session ownership tracking."""
@@ -165,7 +175,7 @@ class TestWithProgress:
         cursor = query.with_progress()
 
         assert isinstance(cursor, QueryCursor)
-        assert cursor._show_progress is True
+        assert isinstance(cursor._progress, TqdmProgressHandler)
 
     def test_with_progress_shards_parameter(self):
         """Test that with_progress accepts shards parameter."""
