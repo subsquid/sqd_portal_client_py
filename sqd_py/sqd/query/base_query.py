@@ -61,7 +61,7 @@ class BaseSQDQuery:
         for f in fields:
             mutable.setdefault(category, set()).add(str(f.value))
 
-        return self._copy(_fields=_freeze_field_values(mutable))
+        return self.copy(_fields=_freeze_field_values(mutable))
 
     def _update_block_range(self: Q, from_block: int, to_block: Optional[int]) -> Q:
         new_from = (
@@ -77,7 +77,7 @@ class BaseSQDQuery:
         if new_from == self.from_block and new_to == self.to_block:
             return self
 
-        return self._copy(from_block=new_from, to_block=new_to)
+        return self.copy(from_block=new_from, to_block=new_to)
 
     # ------------------------------------------------------------------ #
     # Payload helpers
@@ -105,7 +105,9 @@ class BaseSQDQuery:
         # Start with default fields (always needed for pagination etc)
         default_fields = self._default_field_map()
         fields_dict: Dict[str, set[str]] = {
-            category: set(str(f.value) if hasattr(f, 'value') else str(f) for f in fields)
+            category: set(
+                str(f.value) if hasattr(f, "value") else str(f) for f in fields
+            )
             for category, fields in default_fields.items()
         }
 
@@ -140,15 +142,15 @@ class BaseSQDQuery:
     # Async iterator factory
     # ------------------------------------------------------------------ #
     def __aiter__(self):
-        return QueryCursor(self)
+        return QueryCursor(self, shards=15)
 
-    def with_progress(self, shards: int = 1):
+    def with_progress(self, *, shards: int = 15):
         """Return an async iterator with a progress bar.
-        
+
         Args:
             shards: Number of parallel workers to use for fetching.
                     Requires to_block to be set for parallel mode.
-        
+
         Example:
             async for block in query.with_progress():
                 process(block)
@@ -158,7 +160,7 @@ class BaseSQDQuery:
     # ------------------------------------------------------------------ #
     # Internal helpers
     # ------------------------------------------------------------------ #
-    def _copy(self, **changes: object) -> BaseSQDQuery:
+    def copy(self, **changes: object) -> BaseSQDQuery:
         return replace(self, **changes)
 
 

@@ -86,7 +86,7 @@ class SolanaQuery(BaseSQDQuery):
         include_fields: Optional[Sequence[InstructionField]] = None,
     ) -> "SolanaQuery":
         """Query instructions matching the specified criteria."""
-        query = self._copy(from_block=from_block, to_block=to_block)
+        query = self.copy(from_block=from_block, to_block=to_block)
         query = query.add_instructions_request(
             program_id=program_id,
             d1=d1,
@@ -112,7 +112,7 @@ class SolanaQuery(BaseSQDQuery):
         include_fields: Optional[Sequence[SolanaTransactionField]] = None,
     ) -> "SolanaQuery":
         """Query transactions matching the specified criteria."""
-        query = self._copy(from_block=from_block, to_block=to_block)
+        query = self.copy(from_block=from_block, to_block=to_block)
         query = query.add_solana_transactions_request(
             account=account,
             include_instructions=include_instructions,
@@ -132,7 +132,7 @@ class SolanaQuery(BaseSQDQuery):
         include_fields: Optional[Sequence[BalanceField]] = None,
     ) -> "SolanaQuery":
         """Query balance changes."""
-        query = self._copy(from_block=from_block, to_block=to_block)
+        query = self.copy(from_block=from_block, to_block=to_block)
         query = query.add_balances_request(
             account=account, include_transaction=include_transaction
         )
@@ -148,7 +148,7 @@ class SolanaQuery(BaseSQDQuery):
         include_fields: Optional[Sequence[TokenBalanceField]] = None,
     ) -> "SolanaQuery":
         """Query token balance changes."""
-        query = self._copy(from_block=from_block, to_block=to_block)
+        query = self.copy(from_block=from_block, to_block=to_block)
         query = query.add_token_balances_request(
             account=account, include_transaction=include_transaction
         )
@@ -163,7 +163,7 @@ class SolanaQuery(BaseSQDQuery):
         include_fields: Optional[Sequence[RewardField]] = None,
     ) -> "SolanaQuery":
         """Query rewards."""
-        query = self._copy(from_block=from_block, to_block=to_block)
+        query = self.copy(from_block=from_block, to_block=to_block)
         query = query.add_rewards_request(pubkey=pubkey)
         return query.add_fields("reward", include_fields)
 
@@ -179,7 +179,7 @@ class SolanaQuery(BaseSQDQuery):
         include_fields: Optional[Sequence[SolanaLogField]] = None,
     ) -> "SolanaQuery":
         """Query logs."""
-        query = self._copy(from_block=from_block, to_block=to_block)
+        query = self.copy(from_block=from_block, to_block=to_block)
         query = query.add_solana_logs_request(
             program_id=program_id,
             kind=kind,
@@ -225,7 +225,7 @@ class SolanaQuery(BaseSQDQuery):
             innerInstructions=include_inner_instructions,
             logs=include_logs,
         )
-        return self._copy(
+        return self.copy(
             _instructions_requests=self._instructions_requests + (request,)
         )
 
@@ -245,7 +245,7 @@ class SolanaQuery(BaseSQDQuery):
             tokenBalances=include_token_balances,
             logs=include_logs,
         )
-        return self._copy(
+        return self.copy(
             _solana_transactions_requests=self._solana_transactions_requests
             + (request,)
         )
@@ -256,7 +256,7 @@ class SolanaQuery(BaseSQDQuery):
         request = BalancesRequest(
             account=[account] if account else None, transaction=include_transaction
         )
-        return self._copy(_balances_requests=self._balances_requests + (request,))
+        return self.copy(_balances_requests=self._balances_requests + (request,))
 
     def add_token_balances_request(
         self, *, account: Optional[str], include_transaction: bool
@@ -264,13 +264,13 @@ class SolanaQuery(BaseSQDQuery):
         request = TokenBalancesRequest(
             account=[account] if account else None, transaction=include_transaction
         )
-        return self._copy(
+        return self.copy(
             _token_balances_requests=self._token_balances_requests + (request,)
         )
 
     def add_rewards_request(self, *, pubkey: Optional[str]) -> "SolanaQuery":
         request = RewardsRequest(pubkey=[pubkey] if pubkey else None)
-        return self._copy(_rewards_requests=self._rewards_requests + (request,))
+        return self.copy(_rewards_requests=self._rewards_requests + (request,))
 
     def add_solana_logs_request(
         self,
@@ -286,7 +286,7 @@ class SolanaQuery(BaseSQDQuery):
             instruction=include_instruction,
             transaction=include_transaction,
         )
-        return self._copy(_solana_logs_requests=self._solana_logs_requests + (request,))
+        return self.copy(_solana_logs_requests=self._solana_logs_requests + (request,))
 
     # ------------------------------------------------------------------ #
     # Payload hooks

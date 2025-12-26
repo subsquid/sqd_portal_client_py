@@ -79,7 +79,7 @@ class EVMQuery(BaseSQDQuery):
         Returns:
             EVMQuery configured to fetch blocks
         """
-        query = self._copy(
+        query = self.copy(
             from_block=from_block,
             to_block=to_block,
             include_all_blocks=True,  # Always include blocks for this query type
@@ -119,7 +119,7 @@ class EVMQuery(BaseSQDQuery):
             parent_block_hash: Expected hash of parent of first block (for chain continuity)
             include_fields: Specific transaction fields to include
         """
-        query = self._copy(
+        query = self.copy(
             from_block=from_block,
             to_block=to_block,
             include_all_blocks=include_all_blocks,
@@ -165,7 +165,7 @@ class EVMQuery(BaseSQDQuery):
             parent_block_hash: Expected hash of parent of first block
             include_fields: Specific log fields to include
         """
-        query = self._copy(
+        query = self.copy(
             from_block=from_block,
             to_block=to_block,
             include_all_blocks=include_all_blocks,
@@ -280,7 +280,7 @@ class EVMQuery(BaseSQDQuery):
             parent_block_hash: Expected hash of parent of first block
             include_fields: Specific trace fields to include
         """
-        query = self._copy(
+        query = self.copy(
             from_block=from_block,
             to_block=to_block,
             include_all_blocks=include_all_blocks,
@@ -322,7 +322,7 @@ class EVMQuery(BaseSQDQuery):
             parent_block_hash: Expected hash of parent of first block
             include_fields: Specific state diff fields to include
         """
-        query = self._copy(
+        query = self.copy(
             from_block=from_block,
             to_block=to_block,
             include_all_blocks=include_all_blocks,
@@ -363,7 +363,7 @@ class EVMQuery(BaseSQDQuery):
             traces=include_traces,
             stateDiffs=include_state_diffs,
         )
-        return self._copy(
+        return self.copy(
             _transactions_requests=self._transactions_requests + (request,)
         )
 
@@ -385,7 +385,7 @@ class EVMQuery(BaseSQDQuery):
             topic3=[topic3] if topic3 else None,
             transaction=include_transaction,
         )
-        return self._copy(_logs_requests=self._logs_requests + (request,))
+        return self.copy(_logs_requests=self._logs_requests + (request,))
 
     def add_traces_request(
         self,
@@ -405,7 +405,7 @@ class EVMQuery(BaseSQDQuery):
             createFrom=[validate_evm_address(create_from)] if create_from else None,
             transaction=include_transaction,
         )
-        return self._copy(_traces_requests=self._traces_requests + (request,))
+        return self.copy(_traces_requests=self._traces_requests + (request,))
 
     def add_state_diffs_request(
         self,
@@ -421,7 +421,7 @@ class EVMQuery(BaseSQDQuery):
             kind=[kind] if kind else None,
             transaction=include_transaction,
         )
-        return self._copy(_state_diffs_requests=self._state_diffs_requests + (request,))
+        return self.copy(_state_diffs_requests=self._state_diffs_requests + (request,))
 
     # ------------------------------------------------------------------ #
     # Payload hooks

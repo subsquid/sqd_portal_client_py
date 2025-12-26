@@ -57,6 +57,7 @@ async def stream_query_output_async(
     portal_endpoint_url: str,
     query: str,
     session: Optional[aiohttp.ClientSession] = None,
+    timeout: Optional[aiohttp.ClientTimeout] = None,
 ) -> AsyncIterator[tuple[dict, dict]]:
     """Stream JSON lines from the API, yielding each line as it arrives.
 
@@ -77,12 +78,12 @@ async def stream_query_output_async(
     should_close_session = session is None
     if session is None:
         session = create_session()
-
     try:
         async with session.post(
             portal_endpoint_url,
             data=query,
             headers=headers,
+            timeout=timeout,
         ) as resp:
             response_headers = dict(resp.headers)
             await handle_response_errors(resp)
@@ -91,6 +92,9 @@ async def stream_query_output_async(
             newline = ord(b"\n")
 
             async for chunk, _ in resp.content.iter_chunks():
+                if len(chunk) == 0:
+                    return
+
                 buffer.extend(chunk)
 
                 start_offset = 0

@@ -339,7 +339,6 @@ class TestParallelFetchingIntegration:
         shards = 3
 
         sqd = SQD(dataset=Dataset.ETHEREUM, portal_url="https://portal.sqd.dev")
-        # get_blocks already sets include_all_blocks=True internally
         query = sqd.get_blocks(
             from_block=from_block,
             to_block=to_block,

@@ -40,7 +40,7 @@ class ColoredFormatter(logging.Formatter):
         return result
 
 
-def setup_logging(level: int = logging.INFO, colors: bool = True) -> None:
+def setup_logging(level: int = logging.INFO) -> None:
     """
     Configure logging for the SQD client.
 
@@ -62,13 +62,12 @@ def setup_logging(level: int = logging.INFO, colors: bool = True) -> None:
     # Use stdout instead of stderr to avoid red text in some terminals
     handler = logging.StreamHandler(sys.stdout)
 
-    fmt = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+    fmt = "\r%(asctime)s | %(levelname)s | %(name)s | %(message)s"
     handler.setFormatter(ColoredFormatter(fmt))
 
     root_logger.addHandler(handler)
     root_logger.setLevel(level)
 
 
-# Auto-configure logging if root logger has no handlers
 if not logging.root.handlers:
     setup_logging()
