@@ -58,7 +58,7 @@ class InstructionsRequest:
     innerInstructions: bool = False
     logs: bool = False
 
-    def to_sqd_string(self):
+    def to_sqd_string(self) -> dict[str, object]:
         return _request_to_sqd_string(self)
 
 
@@ -83,7 +83,7 @@ class SolanaTransactionsRequest:
     tokenBalances: bool = False
     logs: bool = False
 
-    def to_sqd_string(self):
+    def to_sqd_string(self) -> dict[str, object]:
         return _request_to_sqd_string(self)
 
 
@@ -102,7 +102,7 @@ class BalancesRequest:
     transaction: bool = False
     transactionInstructions: bool = False
 
-    def to_sqd_string(self):
+    def to_sqd_string(self) -> dict[str, object]:
         return _request_to_sqd_string(self)
 
 
@@ -130,7 +130,7 @@ class TokenBalancesRequest:
     transaction: bool = False
     transactionInstructions: bool = False
 
-    def to_sqd_string(self):
+    def to_sqd_string(self) -> dict[str, object]:
         return _request_to_sqd_string(self)
 
 
@@ -145,7 +145,7 @@ class RewardsRequest:
 
     pubkey: list[str] | None = None
 
-    def to_sqd_string(self):
+    def to_sqd_string(self) -> dict[str, object]:
         return _request_to_sqd_string(self)
 
 
@@ -166,5 +166,5 @@ class SolanaLogsRequest:
     instruction: bool = False
     transaction: bool = False
 
-    def to_sqd_string(self):
+    def to_sqd_string(self) -> dict[str, object]:
         return _request_to_sqd_string(self)

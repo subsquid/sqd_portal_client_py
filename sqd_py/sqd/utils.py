@@ -9,7 +9,7 @@ from sqd.dataset import Dataset
 logger = getLogger()
 
 
-def _request_to_sqd_string(r) -> dict:
+def _request_to_sqd_string(r: object) -> dict[str, object]:
     """Convert request dataclass to an SQD-compatible payload."""
 
     def normalize_key(key: str) -> str:
@@ -17,7 +17,7 @@ def _request_to_sqd_string(r) -> dict:
 
     return {
         normalize_key(key): value
-        for key, value in asdict(r).items()
+        for key, value in asdict(r).items()  # type: ignore[arg-type]
         if value is not None
     }
 

@@ -15,7 +15,7 @@ class DecodedTransfer(TypedDict):
     block_number: int | None
 
 
-def decode_transfer(log: dict) -> DecodedTransfer:
+def decode_transfer(log: dict[str, object]) -> DecodedTransfer:
     """
     Decode an ERC-20/ERC-721 Transfer event log.
 

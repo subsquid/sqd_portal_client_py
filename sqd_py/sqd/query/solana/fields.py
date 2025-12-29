@@ -1,4 +1,4 @@
-from enum import StrEnum
+from sqd._compat import StrEnum
 
 # ============================================================================ #
 # Solana Field Definitions (API field names)

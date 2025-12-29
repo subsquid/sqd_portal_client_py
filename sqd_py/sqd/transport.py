@@ -58,7 +58,7 @@ async def stream_query_output_async(
     query: str,
     session: aiohttp.ClientSession | None = None,
     timeout: aiohttp.ClientTimeout | None = None,
-) -> AsyncIterator[tuple[dict, dict]]:
+) -> AsyncIterator[tuple[dict[str, object], dict[str, str]]]:
     """Stream JSON lines from the API, yielding each line as it arrives.
 
     Uses chunked reading with manual line buffering to handle arbitrarily
@@ -141,7 +141,7 @@ async def fetch_query_output_async(
     portal_endpoint_url: str,
     query: str,
     session: aiohttp.ClientSession | None = None,
-) -> tuple[list[dict], dict]:
+) -> tuple[list[dict[str, object]], dict[str, str]]:
     """Fetch all query output at once (non-streaming).
 
     For large responses, prefer stream_query_output_async.

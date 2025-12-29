@@ -3,8 +3,9 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from enum import StrEnum
-from typing import TYPE_CHECKING, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TypeVar
+
+from sqd._compat import StrEnum
 
 if TYPE_CHECKING:
     from sqd.query.cursor import QueryCursor
@@ -39,7 +40,7 @@ class BaseSQDQuery:
     parent_block_hash: str | None = None
 
     @staticmethod
-    def _default_field_map():
+    def _default_field_map() -> dict[str, list[StrEnum]]:
         raise NotImplementedError
 
     # ------------------------------------------------------------------ #
@@ -62,7 +63,7 @@ class BaseSQDQuery:
         for f in fields:
             mutable.setdefault(category, set()).add(str(f.value))
 
-        return self.copy(_fields=_freeze_field_values(mutable))
+        return self._copy(_fields=_freeze_field_values(mutable))
 
     def _update_block_range(self: Q, from_block: int, to_block: int | None) -> Q:
         new_from = (
@@ -78,7 +79,7 @@ class BaseSQDQuery:
         if new_from == self.from_block and new_to == self.to_block:
             return self
 
-        return self.copy(from_block=new_from, to_block=new_to)
+        return self._copy(from_block=new_from, to_block=new_to)
 
     # ------------------------------------------------------------------ #
     # Payload helpers
@@ -165,8 +166,13 @@ class BaseSQDQuery:
     # ------------------------------------------------------------------ #
     # Internal helpers
     # ------------------------------------------------------------------ #
-    def copy(self, **changes: object) -> BaseSQDQuery:
-        return replace(self, **changes)
+    def copy(self: Q, **changes: Any) -> Q:
+        """Create a copy with the given changes. Preserves the concrete type."""
+        return replace(self, **changes)  # type: ignore[return-value]
+
+    def _copy(self: Q, **changes: Any) -> Q:
+        """Internal copy method that preserves the concrete type."""
+        return replace(self, **changes)  # type: ignore[return-value]
 
 
 __all__ = ["BaseSQDQuery"]

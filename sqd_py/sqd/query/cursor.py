@@ -61,7 +61,7 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
         self._queue: asyncio.Queue[
             tuple[dict[str, Any], dict[str, str]] | Exception | None
         ] = asyncio.Queue(maxsize=-1)
-        self._worker_task: asyncio.Task | None = None
+        self._worker_task: asyncio.Task[None] | None = None
 
         # Track max block across parallel shards for correct serial mode resume
         self._max_parallel_block: int = 0
@@ -83,9 +83,11 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
 
         for sig in (signal.SIGINT, signal.SIGTERM):
             try:
-                loop.add_signal_handler(
-                    sig, lambda s=sig: asyncio.create_task(self._handle_signal(s))
-                )
+
+                def make_handler(s: signal.Signals) -> Any:
+                    return lambda: asyncio.create_task(self._handle_signal(s))
+
+                loop.add_signal_handler(sig, make_handler(sig))
             except (NotImplementedError, RuntimeError):
                 # Signal handlers not supported on this platform (e.g., Windows)
                 pass
@@ -195,10 +197,16 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
         try:
             head_url = f"{self._query.portal_url}/datasets/{self._query.dataset}/head"
 
+            if self._session is None:
+                return None
+
             async with self._session.get(head_url) as resp:
                 if resp.status == 200:
-                    data = await resp.json()
-                    return data.get("number")
+                    data: dict[str, Any] = await resp.json()
+                    result = data.get("number")
+                    if isinstance(result, int):
+                        return result
+                    return None
                 else:
                     logger.warning("Head endpoint returned status %d", resp.status)
 
@@ -286,8 +294,8 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
         ) // self._shards  # Ceiling division
 
         # Create per-shard queues and tasks
-        shard_queues: list[asyncio.Queue] = []
-        tasks = []
+        shard_queues: list[asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None]] = []
+        tasks: list[asyncio.Task[None]] = []
 
         for i in range(self._shards):
             start = self._query.from_block + (i * blocks_per_shard)
@@ -297,7 +305,7 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
 
             # Each shard gets its own queue with a limit to prevent memory blowup
             # if early shards stall while later ones race ahead
-            shard_queue: asyncio.Queue = asyncio.Queue()
+            shard_queue: asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None] = asyncio.Queue()
             shard_queues.append(shard_queue)
 
             # Create a sub-query for this shard
@@ -315,7 +323,10 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
         # Wait for drain task to finish processing everything
         await drain_task
 
-    async def _drain_shards_in_order(self, shard_queues: list[asyncio.Queue]) -> None:
+    async def _drain_shards_in_order(
+        self,
+        shard_queues: list[asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None]],
+    ) -> None:
         """Drain shard queues sequentially to maintain block order."""
         for i, shard_queue in enumerate(shard_queues):
             while True:
@@ -332,7 +343,9 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
             logger.debug("Drained shard %d/%d", i + 1, len(shard_queues))
 
     async def _shard_worker(
-        self, query: BaseSQDQuery, shard_queue: asyncio.Queue
+        self,
+        query: BaseSQDQuery,
+        shard_queue: asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None],
     ) -> None:
         """Worker for a specific shard range. Writes to shard-specific queue."""
         current_from = query.from_block

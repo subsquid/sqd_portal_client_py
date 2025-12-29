@@ -1,4 +1,4 @@
-from enum import StrEnum
+from sqd._compat import StrEnum
 
 # ============================================================================ #
 # EVM Field Definitions (matches SQD API spec exactly)
