@@ -113,6 +113,7 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
 
         try:
             item_or_error = await self._queue.get()
+
         except asyncio.CancelledError:
             if not self._shutdown_requested:
                 await self._graceful_shutdown()
@@ -128,6 +129,7 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
 
         item, headers = item_or_error
         self._headers = headers
+        self._progress.on_block(item.get("header", {}).get("number", -1))
         return item
 
     async def _fetch_loop(self) -> None:
@@ -140,15 +142,32 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
             effective_to_block = self._query.to_block
             infinite_mode = self._query.to_block is None
 
-            if self._shards > 1 and infinite_mode:
-                # Probe to get head block number for parallel catchup
-                effective_to_block = await self._probe_head_block()
-                if effective_to_block is not None:
-                    logger.info("Discovered head block: %d", effective_to_block)
+            # For parallel mode, always probe head block to avoid creating shards
+            # for blocks that don't exist yet
+            if self._shards > 1:
+                head_block = await self._probe_head_block()
+                if head_block is not None:
+                    logger.info("Discovered head block: %d", head_block)
+                    if infinite_mode:
+                        # Infinite mode: use head as effective_to_block
+                        effective_to_block = head_block
+                    elif (
+                        effective_to_block is not None
+                        and effective_to_block > head_block
+                    ):
+                        # User's to_block is beyond head - clamp it
+                        logger.warning(
+                            "Requested to_block=%d is beyond head block=%d, clamping",
+                            effective_to_block,
+                            head_block,
+                        )
+                        effective_to_block = head_block
                 else:
                     logger.warning(
                         "Could not discover head block. Falling back to single worker."
                     )
+                    # Can't use parallel mode without knowing head
+                    self._shards = 1
 
             # Initialize progress handler
             self._effective_to_block = effective_to_block
@@ -224,7 +243,10 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
 
         while not self._finished and not self._shutdown_requested:
             # Create a new iterator for the current block range
-            query = self._query.copy(from_block=self._current_from_block, to_block=None)
+            query = self._query.copy(
+                from_block=self._current_from_block,
+                to_block=None if infinite_mode else self._query.to_block,
+            )
             try:
                 timeout = aiohttp.ClientTimeout(sock_read=60)
 
@@ -294,7 +316,9 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
         ) // self._shards  # Ceiling division
 
         # Create per-shard queues and tasks
-        shard_queues: list[asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None]] = []
+        shard_queues: list[
+            asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None]
+        ] = []
         tasks: list[asyncio.Task[None]] = []
 
         for i in range(self._shards):
@@ -305,7 +329,9 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
 
             # Each shard gets its own queue with a limit to prevent memory blowup
             # if early shards stall while later ones race ahead
-            shard_queue: asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None] = asyncio.Queue()
+            shard_queue: asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None] = (
+                asyncio.Queue()
+            )
             shard_queues.append(shard_queue)
 
             # Create a sub-query for this shard
@@ -354,6 +380,12 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
         try:
             while not finished and not self._shutdown_requested:
                 sub_query = query.copy(from_block=current_from)
+                logger.debug(
+                    "Shard [%d-%d] starting request from block %d",
+                    query.from_block,
+                    query.to_block,
+                    current_from,
+                )
                 iterator = stream_query_output_async(
                     sub_query.endpoint(),
                     sub_query.to_sqd_string(),
@@ -376,25 +408,43 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
                             async with self._parallel_lock:
                                 if block_number > self._max_parallel_block:
                                     self._max_parallel_block = block_number
-                            # Update progress
-                            self._progress.on_block(block_number)
 
                     # Put in shard-specific queue (not main queue)
                     await shard_queue.put((item, headers))
 
                 if not received_any:
+                    logger.debug(
+                        "Shard [%d-%d] received no data, finishing",
+                        query.from_block,
+                        query.to_block,
+                    )
                     finished = True
                 else:
                     # Pagination logic for shard
                     if last_block_in_batch is not None:
                         current_from = last_block_in_batch + 1
                         if query.to_block is not None and current_from > query.to_block:
+                            logger.debug(
+                                "Shard [%d-%d] completed - reached to_block",
+                                query.from_block,
+                                query.to_block,
+                            )
                             finished = True
                         last_block_in_batch = None
                     else:
+                        logger.debug(
+                            "Shard [%d-%d] no last_block_in_batch, finishing",
+                            query.from_block,
+                            query.to_block,
+                        )
                         finished = True
         finally:
             # Signal completion of this shard
+            logger.debug(
+                "Shard [%d-%d] putting None to signal completion",
+                query.from_block,
+                query.to_block,
+            )
             await shard_queue.put(None)
 
     def _process_item(self, item: dict[str, Any]) -> None:

@@ -87,6 +87,8 @@ async def stream_query_output_async(
         ) as resp:
             response_headers = dict(resp.headers)
             await handle_response_errors(resp)
+            if resp.status == 204:
+                return  # No content
 
             buffer = bytearray()
             newline = ord(b"\n")

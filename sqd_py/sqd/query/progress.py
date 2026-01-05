@@ -128,10 +128,7 @@ class TqdmProgressHandler(ProgressHandler):
             )
         elif self._pbar.total is not None:
             # Finite mode: update relative to from_block
-            current_progress = block_number - self._from_block + 1
-            delta = current_progress - self._pbar.n
-            if delta > 0:
-                self._pbar.update(delta)
+            self._pbar.update(1)
             self._pbar.set_postfix_str(f"block={block_number}", refresh=True)
         else:
             # Infinite mode (not yet live): just increment
