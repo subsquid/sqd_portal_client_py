@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sqd_py"
-version = "0.1.0"
+version = "0.1.1"
 description = "Lightweight Python client for querying blockchain data from SQD Network"
 authors = [
     { name = "Anton Bernatskiy", email = "abernatskiy@toha.li" },
@@ -60,7 +60,7 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://sqd.dev"
+Homepage = "https://sqd.ai"
 Documentation = "https://docs.sqd.dev"
 Repository = "https://github.com/subsquid/sqd-portal-client-py"
 Issues = "https://github.com/subsquid/sqd-portal-client-py/issues"
@@ -78,6 +78,7 @@ exclude = [
     "/.ruff_cache",
     "/.idea",
     "/example.py",
+    "/check_blocks.py",
 ]
 
 [tool.hatch.build.targets.wheel]

@@ -1,24 +1,11 @@
 # sqd_py
 
-A lightweight Python client for querying blockchain data from the [SQD Network](https://sqd.dev). Supports EVM chains (Ethereum, Binance, etc.) and Solana.
-
-## Features
-
-- 🚀 **Async-first** - Built on `aiohttp` for efficient concurrent data fetching
-- 🔗 **Multi-chain support** - Query Ethereum, Binance, Solana and more
-- 📦 **Type-safe** - Full type hints with Pydantic models
-- 🎯 **Flexible queries** - Filter transactions, logs, and more with a fluent API
+Python client for querying blockchain data from [SQD Network](https://sqd.dev).
 
 ## Installation
 
 ```bash
 pip install sqd_py
-```
-
-Or with [uv](https://docs.astral.sh/uv/):
-
-```bash
-uv add sqd_py
 ```
 
 ## Quick Start
@@ -28,45 +15,62 @@ import asyncio
 from sqd import SQD, Dataset, EvmFields
 
 async def main():
-    # Create client for Ethereum mainnet
-    sqd = SQD(dataset=Dataset.ETHEREUM, portal_url="https://portal.sqd.dev")
+    sqd = SQD(dataset=Dataset.ETHEREUM)
     
-    # Query transactions
     query = sqd.get_transactions(
-        address="0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
         from_block=17_000_000,
         to_block=17_000_010,
-        include_fields=[
-            EvmFields.TransactionField.hash,
-            EvmFields.TransactionField.from_,
-            EvmFields.TransactionField.gasUsed,
-        ],
+        address="0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
     )
     
-    # Stream results asynchronously
-    async for transaction in query:
-        print(transaction)
+    async for block in query:
+        for tx in block.get("transactions", []):
+            print(tx["hash"])
 
-if __name__ == "__main__":
-    asyncio.run(main())
+asyncio.run(main())
 ```
+
+## Usage
 
 ### Querying Logs
 
 ```python
-from sqd import SQD, Dataset, EvmFields
-
-sqd = SQD(dataset=Dataset.ETHEREUM)
-
-# Query ERC-20 Transfer events
 query = sqd.get_logs(
-    address="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # USDC
     from_block=17_000_000,
     to_block=17_000_100,
-    topic0="0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",  # Transfer
+    address="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    topic0="0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+)
+
+async for block in query:
+    for log in block.get("logs", []):
+        print(log)
+```
+
+### ERC-20 Transfers
+
+```python
+query = sqd.get_transfers(
+    from_block=17_000_000,
+    to_block=17_100_000,
+    contract_address="0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+)
+
+async for block in query.with_progress(shards=15):
+    for log in block.get("logs", []):
+        print(log)
+```
+
+### Selecting Fields
+
+```python
+query = sqd.get_transactions(
+    from_block=17_000_000,
+    to_block=17_000_010,
     include_fields=[
-        EvmFields.LogField.logIndex,
-        EvmFields.LogField.transactionHash,
+        EvmFields.TransactionField.hash,
+        EvmFields.TransactionField.from_,
+        EvmFields.TransactionField.gasUsed,
     ],
 )
 ```
@@ -74,71 +78,71 @@ query = sqd.get_logs(
 ### Chaining Queries
 
 ```python
-# Build complex queries by chaining
 query = sqd.get_transactions(
-    address="0x...",
     from_block=17_000_000,
     to_block=17_000_010,
+    address="0x...",
 ).get_logs(
     address="0x...",
     topic0="0x...",
 )
 
-async for data in query:
-    print(data)
+async for block in query:
+    # block contains both transactions and logs
+    pass
 ```
 
-### Solana Support
+### Progress Bar
 
 ```python
-from sqd import SQD, Dataset, SolanaFields
-
-sqd = SQD(dataset=Dataset.SOLANA)
-# Query Solana data similarly...
+async for block in query.with_progress(shards=15):
+    pass
 ```
+
+The `shards` parameter controls parallel fetching for historical data.
 
 ## Supported Datasets
 
-| Chain | Dataset Enum |
-|-------|--------------|
-| Ethereum | `Dataset.ETHEREUM` |
-| Binance Smart Chain | `Dataset.BINANCE` |
-| Solana | `Dataset.SOLANA` |
+| Chain | Dataset |
+|-------|---------|
+| Ethereum | `Dataset.ETHEREUM` or `"ethereum-mainnet"` |
+| Binance Smart Chain | `Dataset.BINANCE` or `"binance-mainnet"` |
+| Solana | `Dataset.SOLANA` or `"solana-mainnet"` |
 
-You can also use string identifiers like `"ethereum-mainnet"`, `"binance-mainnet"`, etc.
+## API
 
-## API Reference
+### SQD
 
-### `SQD(dataset, portal_url, stream_type)`
-
-Main entry point for creating queries.
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `dataset` | `Dataset \| str` | *required* | The blockchain dataset to query |
-| `portal_url` | `str` | `"https://portal.sqd.dev"` | SQD portal URL |
-| `stream_type` | `"finalized" \| "realtime"` | `"realtime"` | Data stream type |
+```python
+SQD(
+    dataset: Dataset | str,
+    portal_url: str = "https://portal.sqd.dev",
+    stream_type: Literal["finalized", "realtime"] = "realtime",
+)
+```
 
 ### Query Methods
 
-- `get_transactions(address, from_block, to_block, include_fields)` - Query transactions
-- `get_logs(address, from_block, to_block, topic0, include_fields)` - Query event logs
+**EVM:**
+- `get_blocks(from_block, to_block, ...)`
+- `get_transactions(from_block, address, to_block, ...)`
+- `get_logs(from_block, address, topic0, to_block, ...)`
+- `get_transfers(from_block, contract_address, ...)`
+- `get_traces(from_block, to_block, ...)`
+- `get_state_diffs(from_block, to_block, ...)`
+
+### Iteration
+
+- `async for block in query` — default iteration
+- `query.with_progress(shards=N)` — with progress bar and parallel fetching
 
 ## Requirements
 
 - Python 3.10+
 - aiohttp >= 3.9.0
+- tqdm >= 4.67.1
+- ujson >= 5.11.0
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Links
-
-- [SQD Network](https://sqd.dev)
-- [Documentation](https://docs.sqd.dev)
-- [GitHub Repository](https://github.com/subsquid/sqd-portal-client-py)
+MIT
