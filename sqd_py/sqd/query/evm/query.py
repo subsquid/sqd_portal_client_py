@@ -348,12 +348,12 @@ class EVMQuery(BaseSQDQuery):
     def add_transactions_request(
         self,
         *,
-        from_address: str | None,
-        to_address: str | None,
-        sighash: str | None,
-        include_logs: bool,
-        include_traces: bool,
-        include_state_diffs: bool,
+        from_address: str | None = None,
+        to_address: str | None = None,
+        sighash: str | None = None,
+        include_logs: bool = False,
+        include_traces: bool = False,
+        include_state_diffs: bool = False,
     ) -> "EVMQuery":
         request = TransactionsRequest(
             from_=[validate_evm_address(from_address)] if from_address else None,
@@ -370,11 +370,11 @@ class EVMQuery(BaseSQDQuery):
     def add_logs_request(
         self,
         *,
-        address: str | None,
-        topic0: str | None,
-        topic1: str | None,
-        topic2: str | None,
-        topic3: str | None,
+        address: str | None = None,
+        topic0: str | None = None,
+        topic1: str | None = None,
+        topic2: str | None = None,
+        topic3: str | None = None,
         include_transaction: bool = False,
     ) -> "EVMQuery":
         request = LogsRequest(
