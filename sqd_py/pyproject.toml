@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sqd_py"
-version = "0.1.4"
+version = "0.1.5"
 description = "Lightweight Python client for querying blockchain data from SQD Network"
 authors = [
     { name = "Anton Bernatskiy", email = "abernatskiy@toha.li" },

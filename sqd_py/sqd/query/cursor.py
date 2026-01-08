@@ -17,6 +17,18 @@ logger = getLogger(__name__)
 MAX_SHARDS = 15
 
 
+class _SwitchToLiveSentinel:
+    """Sentinel value to signal switch from parallel catchup to live mode.
+
+    This flows through the queue after all parallel catchup blocks,
+    ensuring the consumer processes all catchup blocks before switching.
+    """
+
+    def __init__(self, resume_from: int, max_processed: int) -> None:
+        self.resume_from = resume_from
+        self.max_processed = max_processed
+
+
 class QueryCursor(AsyncIterator[dict[str, Any]]):
     """Async iterator that streams query results from the SQD portal.
 
@@ -59,8 +71,11 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
 
         # Background fetching
         self._queue: asyncio.Queue[
-            tuple[dict[str, Any], dict[str, str]] | Exception | None
-        ] = asyncio.Queue(maxsize=-1)
+            tuple[dict[str, Any], dict[str, str]]
+            | Exception
+            | None
+            | _SwitchToLiveSentinel
+        ] = asyncio.Queue(maxsize=20000)
         self._worker_task: asyncio.Task[None] | None = None
 
         # Track max block across parallel shards for correct serial mode resume
@@ -111,26 +126,37 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
         if self._worker_task is None:
             self._worker_task = asyncio.create_task(self._fetch_loop())
 
-        try:
-            item_or_error = await self._queue.get()
+        while True:
+            try:
+                item_or_error = await self._queue.get()
 
-        except asyncio.CancelledError:
-            if not self._shutdown_requested:
-                await self._graceful_shutdown()
-            raise
+            except asyncio.CancelledError:
+                if not self._shutdown_requested:
+                    await self._graceful_shutdown()
+                raise
 
-        if item_or_error is None:
-            await self.close()
-            raise StopAsyncIteration
+            if item_or_error is None:
+                await self.close()
+                raise StopAsyncIteration
 
-        if isinstance(item_or_error, Exception):
-            await self.close()
-            raise item_or_error
+            if isinstance(item_or_error, Exception):
+                await self.close()
+                raise item_or_error
 
-        item, headers = item_or_error
-        self._headers = headers
-        self._progress.on_block(item.get("header", {}).get("number", -1))
-        return item
+            # Handle switchover sentinel: trigger live mode switch and continue
+            if isinstance(item_or_error, _SwitchToLiveSentinel):
+                logger.info(
+                    "Switching to live mode. Resuming from block %d (max processed: %d)",
+                    item_or_error.resume_from,
+                    item_or_error.max_processed,
+                )
+                self._progress.on_switch_to_live(self._last_block_number)
+                continue  # Get next item from queue (now in live mode)
+
+            item, headers = item_or_error
+            self._headers = headers
+            self._progress.on_block(item.get("header", {}).get("number", -1))
+            return item
 
     async def _fetch_loop(self) -> None:
         """Background task to fetch items and put them in the queue."""
@@ -190,14 +216,18 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
                         else effective_to_block + 1
                     )
                     logger.info(
-                        "Parallel catchup complete. Switching to serial mode for live updates. "
-                        "Resuming from block %d (max processed: %d)",
-                        resume_from,
+                        "Parallel fetching complete (max block: %d). "
+                        "Waiting for consumer to process queued blocks...",
                         self._max_parallel_block,
                     )
                     self._current_from_block = resume_from
                     self._last_block_number = self._max_parallel_block  # Sync state
-                    self._progress.on_switch_to_live(self._last_block_number)
+
+                    # Queue sentinel so switch happens after consumer processes all catchup blocks
+                    await self._queue.put(
+                        _SwitchToLiveSentinel(resume_from, self._max_parallel_block)
+                    )
+
                     await self._run_serial_worker()
             else:
                 await self._run_serial_worker()

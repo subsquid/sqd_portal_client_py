@@ -127,8 +127,11 @@ class TqdmProgressHandler(ProgressHandler):
                 f"{self._dataset} | block {block_number} |", refresh=True
             )
         elif self._pbar.total is not None:
-            # Finite mode: update relative to from_block
-            self._pbar.update(1)
+            # Finite mode: update based on position in current range (absolute progress)
+            # We track "blocks scanned" rather than "items received"
+            current_progress = block_number - self._from_block + 1
+            if current_progress > self._pbar.n:
+                self._pbar.update(current_progress - self._pbar.n)
             self._pbar.set_postfix_str(f"block={block_number}", refresh=True)
         else:
             # Infinite mode (not yet live): just increment
