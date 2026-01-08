@@ -24,6 +24,8 @@ class TransactionsRequest:
         stateDiffs: Include all state diffs caused by matching transactions
     """
 
+    fromBlock: list[int] | None = None
+    toBlock: list[int] | None = None
     from_: list[str] | None = None
     to: list[str] | None = None
     sighash: list[str] | None = None
@@ -58,6 +60,8 @@ class LogsRequest:
         transactionLogs: Fetch all logs emitted by parent transactions
     """
 
+    fromBlock: list[int] | None = None
+    toBlock: list[int] | None = None
     address: list[str] | None = None
     topic0: list[str] | None = None
     topic1: list[str] | None = None
@@ -97,6 +101,8 @@ class TracesRequest:
         parents: Fetch parent traces of matching traces
     """
 
+    fromBlock: list[int] | None = None
+    toBlock: list[int] | None = None
     type: list[str] | None = None  # create, call, suicide, reward
     createFrom: list[str] | None = None
     callFrom: list[str] | None = None
@@ -132,6 +138,8 @@ class StateDiffsRequest:
         transaction: Fetch parent transactions for matching state diffs
     """
 
+    fromBlock: list[int] | None = None
+    toBlock: list[int] | None = None
     address: list[str] | None = None
     key: list[str] | None = None
     kind: list[str] | None = None  # '=', '+', '*', '-'
