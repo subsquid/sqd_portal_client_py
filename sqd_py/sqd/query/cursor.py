@@ -346,6 +346,15 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
         # Wait for all fetch tasks to complete
         await asyncio.gather(*tasks)
 
+        # If shutdown was requested, cancel the drain task to avoid waiting
+        if self._shutdown_requested:
+            drain_task.cancel()
+            try:
+                await drain_task
+            except asyncio.CancelledError:
+                pass
+            return
+
         # Wait for drain task to finish processing everything
         await drain_task
 
@@ -353,15 +362,37 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
         self,
         shard_queues: list[asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None]],
     ) -> None:
-        """Drain shard queues sequentially to maintain block order."""
+        """Drain shard queues sequentially to maintain block order.
+
+        Stops draining immediately when shutdown is requested to prevent
+        forwarding additional blocks to the consumer.
+        """
         for i, shard_queue in enumerate(shard_queues):
             while True:
+                # Check shutdown before waiting for next item
+                if self._shutdown_requested:
+                    logger.debug(
+                        "Shutdown requested, stopping drain at shard %d/%d",
+                        i + 1,
+                        len(shard_queues),
+                    )
+                    return
+
                 # Get item from current shard's queue
                 item = await shard_queue.get()
 
                 # None is the signal that this shard is finished
                 if item is None:
                     break
+
+                # Check shutdown after getting item (another opportunity to exit quickly)
+                if self._shutdown_requested:
+                    logger.debug(
+                        "Shutdown requested, stopping drain at shard %d/%d (after get)",
+                        i + 1,
+                        len(shard_queues),
+                    )
+                    return
 
                 # Forward to main queue
                 await self._queue.put(item)
@@ -396,6 +427,15 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
                 last_block_in_batch = None
 
                 async for item, headers in iterator:
+                    # Check for shutdown in the inner loop to stop quickly
+                    if self._shutdown_requested:
+                        logger.debug(
+                            "Shard [%d-%d] shutdown requested, stopping fetch",
+                            query.from_block,
+                            query.to_block,
+                        )
+                        return
+
                     received_any = True
 
                     # Track last block for pagination and progress

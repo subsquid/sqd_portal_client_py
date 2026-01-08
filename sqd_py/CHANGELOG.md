@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `from_block` and `to_block` parameters to all EVM request types (`TransactionsRequest`, `LogsRequest`, `TracesRequest`, `StateDiffsRequest`) for per-request block range filtering
 - Updated `add_transactions_request()` and `add_state_diffs_request()` methods to accept block range parameters
 
+### Fixed
+
+- Fixed graceful shutdown in parallel mode: previously, all queued blocks would still be sent to the consumer during shutdown. Now, when shutdown is requested (Ctrl+C / SIGTERM), block forwarding stops immediately
+
 ## [0.1.2] - 2026-01-06
 
 ### Changed
