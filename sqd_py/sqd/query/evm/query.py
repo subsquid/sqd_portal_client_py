@@ -348,8 +348,6 @@ class EVMQuery(BaseSQDQuery):
     def add_transactions_request(
         self,
         *,
-        from_block: int | None = None,
-        to_block: int | None = None,
         from_address: str | None = None,
         to_address: str | None = None,
         sighash: str | None = None,
@@ -358,8 +356,6 @@ class EVMQuery(BaseSQDQuery):
         include_state_diffs: bool = False,
     ) -> "EVMQuery":
         request = TransactionsRequest(
-            fromBlock=[from_block] if from_block else None,
-            toBlock=[to_block] if to_block else None,
             from_=[validate_evm_address(from_address)] if from_address else None,
             to=[validate_evm_address(to_address)] if to_address else None,
             sighash=[sighash] if sighash else None,
@@ -374,8 +370,6 @@ class EVMQuery(BaseSQDQuery):
     def add_logs_request(
         self,
         *,
-        from_block: int | None = None,
-        to_block: int | None = None,
         address: str | None = None,
         topic0: str | None = None,
         topic1: str | None = None,
@@ -384,8 +378,6 @@ class EVMQuery(BaseSQDQuery):
         include_transaction: bool = False,
     ) -> "EVMQuery":
         request = LogsRequest(
-            fromBlock=[from_block] if from_block else None,
-            toBlock=[to_block] if to_block else None,
             address=[validate_evm_address(address)] if address else None,
             topic0=[topic0] if topic0 else None,
             topic1=[topic1] if topic1 else None,
@@ -398,8 +390,6 @@ class EVMQuery(BaseSQDQuery):
     def add_traces_request(
         self,
         *,
-        from_block: int | None = None,
-        to_block: int | None = None,
         type: str | None = None,
         call_to: str | None = None,
         call_from: str | None = None,
@@ -408,8 +398,6 @@ class EVMQuery(BaseSQDQuery):
         include_transaction: bool = False,
     ) -> "EVMQuery":
         request = TracesRequest(
-            fromBlock=[from_block] if from_block else None,
-            toBlock=[to_block] if to_block else None,
             type=[type] if type else None,
             callTo=[validate_evm_address(call_to)] if call_to else None,
             callFrom=[validate_evm_address(call_from)] if call_from else None,
@@ -422,16 +410,12 @@ class EVMQuery(BaseSQDQuery):
     def add_state_diffs_request(
         self,
         *,
-        from_block: int | None = None,
-        to_block: int | None = None,
         address: str | None = None,
         key: str | None = None,
         kind: str | None = None,
         include_transaction: bool = False,
     ) -> "EVMQuery":
         request = StateDiffsRequest(
-            fromBlock=[from_block] if from_block else None,
-            toBlock=[to_block] if to_block else None,
             address=[validate_evm_address(address)] if address else None,
             key=[key] if key else None,
             kind=[kind] if kind else None,
