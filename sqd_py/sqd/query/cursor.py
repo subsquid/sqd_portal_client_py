@@ -13,14 +13,14 @@ from sqd.utils import create_session
 
 logger = getLogger(__name__)
 
-# Maximum number of parallel shards (based on benchmarks, 15 is optimal)
-MAX_SHARDS = 15
+# Maximum number of prefetch workers (bounded to avoid runaway memory use)
+MAX_PREFETCH_WORKERS = 2
 
 
 class _SwitchToLiveSentinel:
-    """Sentinel value to signal switch from parallel catchup to live mode.
+    """Sentinel value to signal switch from prefetch catchup to live mode.
 
-    This flows through the queue after all parallel catchup blocks,
+    This flows through the queue after all prefetch catchup blocks,
     ensuring the consumer processes all catchup blocks before switching.
     """
 
@@ -34,7 +34,7 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
 
     Handles pagination automatically - continues fetching until to_block is reached
     or no more data is available. Fetches ahead in a background task, optionally
-    using parallel workers if shards > 1 and to_block is set.
+    using a small prefetch window if shards > 1 and to_block is set.
     """
 
     def __init__(
@@ -50,8 +50,10 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
         self._query = query
         self._session = session
         self._owns_session = session is None
-        self._shards = min(shards, MAX_SHARDS)
+        self._prefetch_workers = 1 if shards <= 1 else MAX_PREFETCH_WORKERS
         self._poll_interval = poll_interval
+        if shards > 1:
+            logger.info("Prefetch enabled (experimental).")
 
         # Progress handler
         if progress_handler is not None:
@@ -78,9 +80,9 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
         ] = asyncio.Queue(maxsize=20000)
         self._worker_task: asyncio.Task[None] | None = None
 
-        # Track max block across parallel shards for correct serial mode resume
-        self._max_parallel_block: int = 0
-        self._parallel_lock = asyncio.Lock()
+        # Track max block across prefetch workers for correct serial mode resume
+        self._max_prefetch_block: int = 0
+        self._prefetch_lock = asyncio.Lock()
 
     def __aiter__(self) -> "QueryCursor":
         if self._worker_task is None:
@@ -168,9 +170,8 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
             effective_to_block = self._query.to_block
             infinite_mode = self._query.to_block is None
 
-            # For parallel mode, always probe head block to avoid creating shards
-            # for blocks that don't exist yet
-            if self._shards > 1:
+            # For prefetch mode, probe head block to avoid fetching beyond it
+            if self._prefetch_workers > 1:
                 head_block = await self._probe_head_block()
                 if head_block is not None:
                     logger.info("Discovered head block: %d", head_block)
@@ -190,10 +191,10 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
                         effective_to_block = head_block
                 else:
                     logger.warning(
-                        "Could not discover head block. Falling back to single worker."
+                        "Could not discover head block. Falling back to serial mode."
                     )
-                    # Can't use parallel mode without knowing head
-                    self._shards = 1
+                    # Can't use prefetch without knowing head
+                    self._prefetch_workers = 1
 
             # Initialize progress handler
             self._effective_to_block = effective_to_block
@@ -203,29 +204,29 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
                 to_block=effective_to_block,
             )
 
-            if self._shards > 1 and effective_to_block is not None:
-                # Run parallel workers to catch up
-                await self._run_parallel_workers(effective_to_block)
+            if self._prefetch_workers > 1 and effective_to_block is not None:
+                # Run prefetch workers to catch up
+                await self._run_prefetch_workers(effective_to_block)
 
                 # If infinite mode, switch to serial for continuous polling
                 if infinite_mode and not self._shutdown_requested:
                     # Use actual max block processed, not the initial head block
                     resume_from = (
-                        self._max_parallel_block + 1
-                        if self._max_parallel_block > 0
+                        self._max_prefetch_block + 1
+                        if self._max_prefetch_block > 0
                         else effective_to_block + 1
                     )
                     logger.info(
-                        "Parallel fetching complete (max block: %d). "
+                        "Prefetching complete (max block: %d). "
                         "Waiting for consumer to process queued blocks...",
-                        self._max_parallel_block,
+                        self._max_prefetch_block,
                     )
                     self._current_from_block = resume_from
-                    self._last_block_number = self._max_parallel_block  # Sync state
+                    self._last_block_number = self._max_prefetch_block  # Sync state
 
                     # Queue sentinel so switch happens after consumer processes all catchup blocks
                     await self._queue.put(
-                        _SwitchToLiveSentinel(resume_from, self._max_parallel_block)
+                        _SwitchToLiveSentinel(resume_from, self._max_prefetch_block)
                     )
 
                     await self._run_serial_worker()
@@ -333,108 +334,94 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
             else:
                 self._handle_serial_stream_completion()
 
-    async def _run_parallel_workers(self, effective_to_block: int) -> None:
-        """Run multiple workers for different block ranges with ordered output.
-
-        Each shard fetches its range in parallel but writes to its own queue.
-        We then drain the queues sequentially (shard 0, then shard 1, etc.) to
-        guarantee blocks are emitted in ascending order.
-        """
+    def _prefetch_chunk_size(self, effective_to_block: int) -> int:
         total_blocks = effective_to_block - self._query.from_block + 1
-        blocks_per_shard = (
-            total_blocks + self._shards - 1
-        ) // self._shards  # Ceiling division
+        max_from_queue = max(1, self._queue.maxsize // 4)
+        chunk_size = min(5000, max(1000, max_from_queue))
+        return min(chunk_size, total_blocks)
 
-        # Create per-shard queues and tasks
-        shard_queues: list[
-            asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None]
-        ] = []
-        tasks: list[asyncio.Task[None]] = []
+    def _prefetch_queue_maxsize(self) -> int:
+        return max(1, self._queue.maxsize // 4)
 
-        for i in range(self._shards):
-            start = self._query.from_block + (i * blocks_per_shard)
-            if start > effective_to_block:
-                break
-            end = min(start + blocks_per_shard - 1, effective_to_block)
+    async def _run_prefetch_workers(self, effective_to_block: int) -> None:
+        """Run a small rolling prefetch window with ordered output."""
+        chunk_size = self._prefetch_chunk_size(effective_to_block)
 
-            # Each shard gets its own queue with a limit to prevent memory blowup
-            # if early shards stall while later ones race ahead
-            shard_queue: asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None] = (
-                asyncio.Queue()
+        async def start_worker(
+            start: int, end: int
+        ) -> tuple[
+            asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None],
+            asyncio.Task[None],
+            int,
+        ]:
+            worker_queue: asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None] = (
+                asyncio.Queue(maxsize=self._prefetch_queue_maxsize())
             )
-            shard_queues.append(shard_queue)
-
-            # Create a sub-query for this shard
             shard_query = self._query.copy(from_block=start, to_block=end)
-            tasks.append(
-                asyncio.create_task(self._shard_worker(shard_query, shard_queue))
-            )
+            task = asyncio.create_task(self._shard_worker(shard_query, worker_queue))
+            return worker_queue, task, end
 
-        # Start a task to drain shard queues sequentially into the main queue
-        drain_task = asyncio.create_task(self._drain_shards_in_order(shard_queues))
+        next_start = self._query.from_block
+        current_end = min(next_start + chunk_size - 1, effective_to_block)
+        current_queue, current_task, current_end = await start_worker(
+            next_start, current_end
+        )
 
-        # Wait for all fetch tasks to complete
-        await asyncio.gather(*tasks)
+        next_start = current_end + 1
+        next_queue: (
+            asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None] | None
+        ) = None
+        next_task: asyncio.Task[None] | None = None
+        next_end: int | None = None
 
-        # If shutdown was requested, cancel the drain task to avoid waiting
-        if self._shutdown_requested:
-            drain_task.cancel()
-            try:
-                await drain_task
-            except asyncio.CancelledError:
-                pass
-            return
+        if next_start <= effective_to_block:
+            end = min(next_start + chunk_size - 1, effective_to_block)
+            next_queue, next_task, next_end = await start_worker(next_start, end)
 
-        # Wait for drain task to finish processing everything
-        await drain_task
-
-    async def _drain_shards_in_order(
-        self,
-        shard_queues: list[asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None]],
-    ) -> None:
-        """Drain shard queues sequentially to maintain block order.
-
-        Stops draining immediately when shutdown is requested to prevent
-        forwarding additional blocks to the consumer.
-        """
-        for i, shard_queue in enumerate(shard_queues):
+        while True:
             while True:
-                # Check shutdown before waiting for next item
                 if self._shutdown_requested:
-                    logger.debug(
-                        "Shutdown requested, stopping drain at shard %d/%d",
-                        i + 1,
-                        len(shard_queues),
-                    )
+                    if next_task is not None:
+                        next_task.cancel()
+                        try:
+                            await next_task
+                        except asyncio.CancelledError:
+                            pass
+                    current_task.cancel()
+                    try:
+                        await current_task
+                    except asyncio.CancelledError:
+                        pass
                     return
 
-                # Get item from current shard's queue
-                item = await shard_queue.get()
-
-                # None is the signal that this shard is finished
+                item = await current_queue.get()
                 if item is None:
                     break
-
-                # Check shutdown after getting item (another opportunity to exit quickly)
-                if self._shutdown_requested:
-                    logger.debug(
-                        "Shutdown requested, stopping drain at shard %d/%d (after get)",
-                        i + 1,
-                        len(shard_queues),
-                    )
-                    return
-
-                # Forward to main queue
                 await self._queue.put(item)
 
-            logger.debug("Drained shard %d/%d", i + 1, len(shard_queues))
+            await current_task
+
+            if next_queue is None or next_task is None or next_end is None:
+                break
+
+            current_queue, current_task = next_queue, next_task
+            current_end = next_end
+
+            next_start = current_end + 1
+            if next_start <= effective_to_block:
+                end = min(next_start + chunk_size - 1, effective_to_block)
+                next_queue, next_task, next_end = await start_worker(next_start, end)
+            else:
+                next_queue = None
+                next_task = None
+                next_end = None
 
     async def _shard_worker(
         self,
         query: BaseSQDQuery,
         shard_queue: asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None],
     ) -> None:
-        """Worker for a specific shard range. Writes to shard-specific queue."""
+        """Worker for a specific range. Writes to a range-specific queue."""
         current_from = query.from_block
         finished = False
 
@@ -442,7 +429,7 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
             while not finished and not self._shutdown_requested:
                 sub_query = query.copy(from_block=current_from)
                 logger.debug(
-                    "Shard [%d-%d] starting request from block %d",
+                    "Range [%d-%d] starting request from block %d",
                     query.from_block,
                     query.to_block,
                     current_from,
@@ -461,7 +448,7 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
                         # Check for shutdown in the inner loop to stop quickly
                         if self._shutdown_requested:
                             logger.debug(
-                                "Shard [%d-%d] shutdown requested, stopping fetch",
+                            "Range [%d-%d] shutdown requested, stopping fetch",
                                 query.from_block,
                                 query.to_block,
                             )
@@ -476,9 +463,9 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
                             if block_number is not None:
                                 last_block_in_batch = block_number
                                 # Update global max block for correct serial resume
-                                async with self._parallel_lock:
-                                    if block_number > self._max_parallel_block:
-                                        self._max_parallel_block = block_number
+                            async with self._prefetch_lock:
+                                if block_number > self._max_prefetch_block:
+                                    self._max_prefetch_block = block_number
 
                         # Put in shard-specific queue (not main queue)
                         await shard_queue.put((item, headers))
@@ -486,7 +473,7 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
                     if last_block_in_batch is not None:
                         current_from = last_block_in_batch + 1
                     logger.warning(
-                        "Connection error in shard [%d-%d] (will retry): %s: %s",
+                        "Connection error in range [%d-%d] (will retry): %s: %s",
                         query.from_block,
                         query.to_block,
                         type(e).__name__,
@@ -497,7 +484,7 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
 
                 if not received_any:
                     logger.debug(
-                        "Shard [%d-%d] received no data, finishing",
+                        "Range [%d-%d] received no data, finishing",
                         query.from_block,
                         query.to_block,
                     )
@@ -508,7 +495,7 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
                         current_from = last_block_in_batch + 1
                         if query.to_block is not None and current_from > query.to_block:
                             logger.debug(
-                                "Shard [%d-%d] completed - reached to_block",
+                                "Range [%d-%d] completed - reached to_block",
                                 query.from_block,
                                 query.to_block,
                             )
@@ -516,7 +503,7 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
                         last_block_in_batch = None
                     else:
                         logger.debug(
-                            "Shard [%d-%d] no last_block_in_batch, finishing",
+                            "Range [%d-%d] no last_block_in_batch, finishing",
                             query.from_block,
                             query.to_block,
                         )
@@ -524,7 +511,7 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
         finally:
             # Signal completion of this shard
             logger.debug(
-                "Shard [%d-%d] putting None to signal completion",
+                "Range [%d-%d] putting None to signal completion",
                 query.from_block,
                 query.to_block,
             )

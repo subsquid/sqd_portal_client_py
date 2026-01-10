@@ -1,4 +1,4 @@
-"""Tests for sqd.query.cursor module - QueryCursor parallel fetching."""
+"""Tests for sqd.query.cursor module - QueryCursor prefetching."""
 
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -12,23 +12,23 @@ from sqd.query.progress import NoopProgressHandler, TqdmProgressHandler
 class TestQueryCursorInit:
     """Tests for QueryCursor initialization."""
 
-    def test_default_shards_is_one(self):
-        """Test that default shards is 1."""
+    def test_default_prefetch_is_one(self):
+        """Test that default prefetch workers is 1."""
         mock_query = MagicMock()
         mock_query.from_block = 0
         mock_query.to_block = 100
 
         cursor = QueryCursor(mock_query)
-        assert cursor._shards == 1
+        assert cursor._prefetch_workers == 1
 
     def test_shards_parameter(self):
-        """Test that shards parameter is stored."""
+        """Test that shards parameter enables prefetch."""
         mock_query = MagicMock()
         mock_query.from_block = 0
         mock_query.to_block = 100
 
         cursor = QueryCursor(mock_query, shards=5)
-        assert cursor._shards == 5
+        assert cursor._prefetch_workers == 2
 
     def test_show_progress_parameter(self):
         """Test that show_progress parameter creates TqdmProgressHandler."""
@@ -61,80 +61,6 @@ class TestQueryCursorInit:
         mock_session = MagicMock()
         cursor2 = QueryCursor(mock_query, session=mock_session)
         assert cursor2._owns_session is False
-
-
-class TestShardCalculation:
-    """Tests for shard range calculation."""
-
-    def test_shard_ranges_no_gaps(self):
-        """Test that shard ranges have no gaps."""
-        from_block = 1000
-        to_block = 1999
-        shards = 5
-
-        total_blocks = to_block - from_block + 1  # 1000
-        blocks_per_shard = (total_blocks + shards - 1) // shards  # 200
-
-        ranges = []
-        for i in range(shards):
-            start = from_block + (i * blocks_per_shard)
-            if start > to_block:
-                break
-            end = min(start + blocks_per_shard - 1, to_block)
-            ranges.append((start, end))
-
-        # Verify no gaps
-        for i in range(1, len(ranges)):
-            prev_end = ranges[i - 1][1]
-            curr_start = ranges[i][0]
-            assert curr_start == prev_end + 1, f"Gap between shard {i-1} and {i}"
-
-        # Verify coverage
-        assert ranges[0][0] == from_block
-        assert ranges[-1][1] == to_block
-
-    def test_shard_ranges_uneven_division(self):
-        """Test shard ranges with uneven block count."""
-        from_block = 0
-        to_block = 99  # 100 blocks
-        shards = 3  # 100 / 3 = 33.33...
-
-        total_blocks = to_block - from_block + 1
-        blocks_per_shard = (total_blocks + shards - 1) // shards  # 34
-
-        ranges = []
-        for i in range(shards):
-            start = from_block + (i * blocks_per_shard)
-            if start > to_block:
-                break
-            end = min(start + blocks_per_shard - 1, to_block)
-            ranges.append((start, end))
-
-        # Should have 3 shards: 0-33, 34-67, 68-99
-        assert len(ranges) == 3
-        assert ranges[0] == (0, 33)
-        assert ranges[1] == (34, 67)
-        assert ranges[2] == (68, 99)
-
-    def test_shard_ranges_more_shards_than_blocks(self):
-        """Test when shards > total blocks."""
-        from_block = 0
-        to_block = 2  # Only 3 blocks
-        shards = 10
-
-        total_blocks = to_block - from_block + 1
-        blocks_per_shard = (total_blocks + shards - 1) // shards  # 1
-
-        ranges = []
-        for i in range(shards):
-            start = from_block + (i * blocks_per_shard)
-            if start > to_block:
-                break
-            end = min(start + blocks_per_shard - 1, to_block)
-            ranges.append((start, end))
-
-        # Should only create 3 shards, not 10
-        assert len(ranges) == 3
 
 
 class TestQueryCursorProperties:
@@ -186,7 +112,7 @@ class TestWithProgress:
         )
         cursor = query.with_progress(shards=5)
 
-        assert cursor._shards == 5
+        assert cursor._prefetch_workers == 2
 
 
 class TestQueryCursorClose:
@@ -330,15 +256,15 @@ class TestAiter:
 
 
 @pytest.mark.integration
-class TestParallelFetchingIntegration:
-    """Integration tests for parallel fetching (requires network).
+class TestPrefetchIntegration:
+    """Integration tests for prefetch fetching (requires network).
 
     Run with: pytest tests/test_cursor.py -v -m integration
     """
 
     @pytest.mark.asyncio
-    async def test_parallel_fetching_no_gaps(self):
-        """Test that parallel fetching returns all blocks without gaps.
+    async def test_prefetch_fetching_no_gaps(self):
+        """Test that prefetch fetching returns all blocks without gaps.
 
         Based on check_blocks.py verification pattern.
         """
@@ -346,7 +272,7 @@ class TestParallelFetchingIntegration:
 
         from_block = 12649280
         to_block = from_block + 1000  # Small range for fast test
-        shards = 3
+        shards = 2
 
         sqd = SQD(dataset=Dataset.ETHEREUM, portal_url="https://portal.sqd.dev")
         query = sqd.get_blocks(
@@ -375,8 +301,8 @@ class TestParallelFetchingIntegration:
             assert block == expected, f"Gap at position {i}: expected {expected}, got {block}"
 
     @pytest.mark.asyncio
-    async def test_serial_vs_parallel_same_results(self):
-        """Test that serial and parallel fetching return the same blocks."""
+    async def test_serial_vs_prefetch_same_results(self):
+        """Test that serial and prefetch fetching return the same blocks."""
         from sqd import SQD, Dataset
 
         from_block = 12649280
@@ -393,12 +319,11 @@ class TestParallelFetchingIntegration:
         async for data in query.with_progress(shards=1):
             serial_blocks.append(data["header"]["number"])
 
-        # Parallel fetch
-        parallel_blocks = []
-        async for data in query.with_progress(shards=3):
-            parallel_blocks.append(data["header"]["number"])
+        # Prefetch fetch
+        prefetch_blocks = []
+        async for data in query.with_progress(shards=2):
+            prefetch_blocks.append(data["header"]["number"])
 
-        # Compare (sorted because parallel order may differ)
-        assert sorted(serial_blocks) == sorted(parallel_blocks)
-        assert len(serial_blocks) == len(parallel_blocks)
-
+        # Compare (sorted to be safe)
+        assert sorted(serial_blocks) == sorted(prefetch_blocks)
+        assert len(serial_blocks) == len(prefetch_blocks)

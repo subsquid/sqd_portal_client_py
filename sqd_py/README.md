@@ -56,7 +56,7 @@ query = sqd.get_transfers(
     contract_address="0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
 )
 
-async for block in query.with_progress(shards=15):
+async for block in query.with_progress():
     for log in block.get("logs", []):
         print(log)
 ```
@@ -95,11 +95,12 @@ async for block in query:
 ### Progress Bar
 
 ```python
-async for block in query.with_progress(shards=15):
+async for block in query.with_progress():
     pass
 ```
 
-The `shards` parameter controls parallel fetching for historical data.
+The `shards` parameter enables an experimental prefetch window for historical data
+(values > 1 use a two-range prefetch; higher values are clamped and may be slower).
 
 ## Supported Datasets
 
@@ -134,7 +135,7 @@ SQD(
 ### Iteration
 
 - `async for block in query` — default iteration
-- `query.with_progress(shards=N)` — with progress bar and parallel fetching
+- `query.with_progress(shards=N)` — with progress bar and experimental prefetching
 
 ## Requirements
 

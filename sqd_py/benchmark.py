@@ -1,4 +1,4 @@
-"""Benchmark different shard counts to find optimal parallelism."""
+"""Benchmark prefetch settings for historical ranges."""
 
 import asyncio
 import time
@@ -7,7 +7,7 @@ from sqd import SQD, Dataset
 
 
 async def benchmark_shards(shards: int, from_block: int, to_block: int) -> float:
-    """Run a benchmark with the given shard count."""
+    """Run a benchmark with the given prefetch setting."""
     sqd = SQD(dataset=Dataset.ETHEREUM, portal_url="https://portal.sqd.dev")
     query = sqd.get_blocks(from_block=from_block, to_block=to_block)
     start = time.perf_counter()
@@ -28,17 +28,20 @@ async def main():
     print("-" * 60)
 
     results = []
-    for shards in [1, 3, 5, 10, 15, 20, 30]:
-        print(f"\nTesting with {shards} shards...")
+    for shards in [1, 2]:
+        print(f"\nTesting with {shards} prefetch setting...")
         elapsed, count = await benchmark_shards(shards, from_block, to_block)
         blocks_per_sec = count / elapsed
         results.append((shards, elapsed, blocks_per_sec))
-        print(f"  {shards} shards: {elapsed:.2f}s ({blocks_per_sec:.0f} blocks/sec)")
+        print(
+            f"  {shards} prefetch setting: {elapsed:.2f}s "
+            f"({blocks_per_sec:.0f} blocks/sec)"
+        )
 
     print("\n" + "=" * 60)
     print("RESULTS SUMMARY")
     print("=" * 60)
-    print(f"{'Shards':<10} {'Time (s)':<12} {'Blocks/sec':<15} {'Speedup':<10}")
+    print(f"{'Prefetch':<10} {'Time (s)':<12} {'Blocks/sec':<15} {'Speedup':<10}")
     print("-" * 60)
 
     baseline = results[0][1]  # 1-shard time
