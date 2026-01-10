@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Retried parallel shard streaming on transient aiohttp client errors to avoid crashing on truncated responses
+- Disabled tqdm progress bars when stderr is not a TTY (or TERM=dumb) to avoid duplicated output in unsupported terminals, with a plain-text fallback
+- Added ETA, rate, and latest block details to the plain-text progress fallback
+- Computed plain-text rates from time deltas to avoid 0.00/s on fast block streams
+- Show sub-minute elapsed time with fractional seconds in plain-text logs
+- Show sub-second elapsed time with millisecond precision in plain-text logs
+- Added day-level formatting for long ETAs
 
 ## [0.1.5] - 2026-01-08
 
