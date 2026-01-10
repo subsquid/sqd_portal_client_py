@@ -456,31 +456,44 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
                 received_any = False
                 last_block_in_batch = None
 
-                async for item, headers in iterator:
-                    # Check for shutdown in the inner loop to stop quickly
-                    if self._shutdown_requested:
-                        logger.debug(
-                            "Shard [%d-%d] shutdown requested, stopping fetch",
-                            query.from_block,
-                            query.to_block,
-                        )
-                        return
+                try:
+                    async for item, headers in iterator:
+                        # Check for shutdown in the inner loop to stop quickly
+                        if self._shutdown_requested:
+                            logger.debug(
+                                "Shard [%d-%d] shutdown requested, stopping fetch",
+                                query.from_block,
+                                query.to_block,
+                            )
+                            return
 
-                    received_any = True
+                        received_any = True
 
-                    # Track last block for pagination and progress
-                    header = item.get("header")
-                    if header:
-                        block_number = header.get("number")
-                        if block_number is not None:
-                            last_block_in_batch = block_number
-                            # Update global max block for correct serial resume
-                            async with self._parallel_lock:
-                                if block_number > self._max_parallel_block:
-                                    self._max_parallel_block = block_number
+                        # Track last block for pagination and progress
+                        header = item.get("header")
+                        if header:
+                            block_number = header.get("number")
+                            if block_number is not None:
+                                last_block_in_batch = block_number
+                                # Update global max block for correct serial resume
+                                async with self._parallel_lock:
+                                    if block_number > self._max_parallel_block:
+                                        self._max_parallel_block = block_number
 
-                    # Put in shard-specific queue (not main queue)
-                    await shard_queue.put((item, headers))
+                        # Put in shard-specific queue (not main queue)
+                        await shard_queue.put((item, headers))
+                except (asyncio.TimeoutError, aiohttp.ClientError) as e:
+                    if last_block_in_batch is not None:
+                        current_from = last_block_in_batch + 1
+                    logger.warning(
+                        "Connection error in shard [%d-%d] (will retry): %s: %s",
+                        query.from_block,
+                        query.to_block,
+                        type(e).__name__,
+                        e,
+                    )
+                    await asyncio.sleep(1.0)
+                    continue
 
                 if not received_any:
                     logger.debug(
