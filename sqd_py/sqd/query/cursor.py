@@ -171,30 +171,20 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
             infinite_mode = self._query.to_block is None
 
             # For prefetch mode, probe head block to avoid fetching beyond it
-            if self._prefetch_workers > 1:
-                head_block = await self._probe_head_block()
-                if head_block is not None:
-                    logger.info("Discovered head block: %d", head_block)
-                    if infinite_mode:
-                        # Infinite mode: use head as effective_to_block
-                        effective_to_block = head_block
-                    elif (
-                        effective_to_block is not None
-                        and effective_to_block > head_block
-                    ):
-                        # User's to_block is beyond head - clamp it
-                        logger.warning(
-                            "Requested to_block=%d is beyond head block=%d, clamping",
-                            effective_to_block,
-                            head_block,
-                        )
-                        effective_to_block = head_block
-                else:
+            head_block = await self._probe_head_block()
+            if head_block is not None:
+                logger.info("Discovered head block: %d", head_block)
+                if infinite_mode:
+                    # Infinite mode: use head as effective_to_block
+                    effective_to_block = head_block
+                elif effective_to_block is not None and effective_to_block > head_block:
+                    # User's to_block is beyond head - clamp it
                     logger.warning(
-                        "Could not discover head block. Falling back to serial mode."
+                        "Requested to_block=%d is beyond head block=%d, clamping",
+                        effective_to_block,
+                        head_block,
                     )
-                    # Can't use prefetch without knowing head
-                    self._prefetch_workers = 1
+                    effective_to_block = head_block
 
             # Initialize progress handler
             self._effective_to_block = effective_to_block
@@ -347,16 +337,14 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
         """Run a small rolling prefetch window with ordered output."""
         chunk_size = self._prefetch_chunk_size(effective_to_block)
 
-        async def start_worker(
-            start: int, end: int
-        ) -> tuple[
+        async def start_worker(start: int, end: int) -> tuple[
             asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None],
             asyncio.Task[None],
             int,
         ]:
-            worker_queue: asyncio.Queue[tuple[dict[str, Any], dict[str, str]] | None] = (
-                asyncio.Queue(maxsize=self._prefetch_queue_maxsize())
-            )
+            worker_queue: asyncio.Queue[
+                tuple[dict[str, Any], dict[str, str]] | None
+            ] = asyncio.Queue(maxsize=self._prefetch_queue_maxsize())
             shard_query = self._query.copy(from_block=start, to_block=end)
             task = asyncio.create_task(self._shard_worker(shard_query, worker_queue))
             return worker_queue, task, end
@@ -448,7 +436,7 @@ class QueryCursor(AsyncIterator[dict[str, Any]]):
                         # Check for shutdown in the inner loop to stop quickly
                         if self._shutdown_requested:
                             logger.debug(
-                            "Range [%d-%d] shutdown requested, stopping fetch",
+                                "Range [%d-%d] shutdown requested, stopping fetch",
                                 query.from_block,
                                 query.to_block,
                             )
