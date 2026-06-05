@@ -1,0 +1,117 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sqd_py"
+version = "0.1.7"
+description = "Lightweight Python client for querying blockchain data from SQD Network"
+authors = [
+    { name = "Anton Bernatskiy", email = "abernatskiy@toha.li" },
+    { name = "Evgeny Shestakov", email = "evgeny.shestakov.0x@gmail.com" },
+]
+maintainers = [
+    { name = "Subsquid Labs" },
+]
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+keywords = [
+    "sqd",
+    "subsquid",
+    "blockchain",
+    "ethereum",
+    "evm",
+    "solana",
+    "web3",
+    "indexer",
+    "data",
+    "async",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet",
+    "Typing :: Typed",
+    "Framework :: AsyncIO",
+]
+dependencies = [
+    "aiohttp>=3.9.0",
+    "tqdm>=4.67.1",
+    "ujson>=5.11.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.10.0",
+    "ruff>=0.4.0",
+    "mypy>=1.10.0",
+    "types-tqdm>=4.66.0",
+]
+
+[project.urls]
+Homepage = "https://sqd.ai"
+Documentation = "https://docs.sqd.dev"
+Repository = "https://github.com/subsquid/sqd-portal-client-py"
+Issues = "https://github.com/subsquid/sqd-portal-client-py/issues"
+Changelog = "https://github.com/subsquid/sqd-portal-client-py/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/sqd",
+    "/README.md",
+    "/LICENSE",
+]
+exclude = [
+    "/.github",
+    "/.venv",
+    "/.ruff_cache",
+    "/.idea",
+    "/example.py",
+    "/check_blocks.py",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["sqd"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+asyncio_mode = "auto"
+markers = [
+    "asyncio: marks tests as async (using asyncio)",
+    "integration: marks tests that require network access (deselect with '-m not integration')",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501", "N815"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+]

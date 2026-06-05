@@ -1,0 +1,360 @@
+# sqd_py
+
+> AI-readable documentation for LLMs and coding assistants.
+
+## Overview
+
+`sqd_py` is a Python client for querying blockchain data from the SQD Network. It provides async streaming of blocks, transactions, logs, traces, and other on-chain data for EVM chains (Ethereum, Binance, etc.) and Solana.
+
+## Core Concepts
+
+1. **SQD** - Factory function that creates a query builder for a specific dataset
+2. **Query** - Immutable query object built by chaining methods like `get_transactions()`, `get_logs()`
+3. **Block** - Each iteration yields a block dict containing `header` and requested data arrays
+
+## Response Structure
+
+Every iteration yields a block dictionary:
+
+```python
+{
+    "header": {
+        "number": 17000000,
+        "timestamp": 1681338455,
+        "hash": "0x...",
+        ...
+    },
+    "transactions": [...],  # if requested
+    "logs": [...],          # if requested
+    "traces": [...],        # if requested
+    "stateDiffs": [...]     # if requested
+}
+```
+
+## Installation
+
+```bash
+pip install sqd_py
+```
+
+## Imports
+
+```python
+from sqd import SQD, Dataset, EvmFields, SolanaFields
+```
+
+## Creating a Client
+
+```python
+# Using Dataset enum
+sqd = SQD(dataset=Dataset.ETHEREUM)
+
+# Using string
+sqd = SQD(dataset="ethereum-mainnet")
+
+# With options
+sqd = SQD(
+    dataset=Dataset.ETHEREUM,
+    portal_url="https://portal.sqd.dev",  # default
+    stream_type="realtime",                # or "finalized"
+)
+```
+
+## Available Datasets
+
+| Dataset Enum | String |
+|-------------|--------|
+| `Dataset.ETHEREUM` | `"ethereum-mainnet"` |
+| `Dataset.BINANCE` | `"binance-mainnet"` |
+| `Dataset.SOLANA` | `"solana-mainnet"` |
+
+---
+
+## EVM Queries
+
+### get_transactions
+
+```python
+query = sqd.get_transactions(
+    from_block=17_000_000,              # required
+    to_block=17_000_100,                # optional, None = infinite streaming
+    address="0x...",                     # filter by from address
+    from_address="0x...",                # explicit from address
+    to_address="0x...",                  # filter by to address
+    sighash="0xa9059cbb",               # method signature
+    include_logs=False,                  # include logs for matching txs
+    include_traces=False,                # include traces
+    include_state_diffs=False,           # include state diffs
+    include_all_blocks=False,            # include empty blocks
+    include_fields=[                     # specific fields to return
+        EvmFields.TransactionField.hash,
+        EvmFields.TransactionField.from_,
+        EvmFields.TransactionField.gasUsed,
+    ],
+)
+```
+
+### get_logs
+
+```python
+query = sqd.get_logs(
+    from_block=17_000_000,
+    to_block=17_000_100,
+    address="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # contract
+    topic0="0xddf252ad...",             # event signature
+    topic1="0x...",                      # indexed param 1
+    topic2="0x...",                      # indexed param 2
+    topic3="0x...",                      # indexed param 3
+    include_transaction=False,           # include parent tx
+    include_fields=[
+        EvmFields.LogField.logIndex,
+        EvmFields.LogField.transactionHash,
+    ],
+)
+```
+
+### get_transfers
+
+Convenience method for ERC-20/ERC-721 Transfer events:
+
+```python
+query = sqd.get_transfers(
+    from_block=17_000_000,
+    to_block=17_100_000,
+    contract_address="0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",  # WETH
+    from_address="0x...",               # filter sender
+    to_address="0x...",                  # filter recipient
+)
+```
+
+### get_traces
+
+```python
+query = sqd.get_traces(
+    from_block=17_000_000,
+    to_block=17_000_100,
+    type="call",                         # "create", "call", "suicide", "reward"
+    call_to="0x...",
+    call_from="0x...",
+    call_sighash="0x...",
+    create_from="0x...",
+    include_transaction=False,
+)
+```
+
+### get_state_diffs
+
+```python
+query = sqd.get_state_diffs(
+    from_block=17_000_000,
+    to_block=17_000_100,
+    address="0x...",
+    key="0x...",                         # storage slot or "balance", "code", "nonce"
+    kind="*",                            # "=", "+", "*", "-"
+)
+```
+
+### get_blocks
+
+```python
+query = sqd.get_blocks(
+    from_block=17_000_000,
+    to_block=17_000_100,
+    include_fields=[
+        EvmFields.BlockField.hash,
+        EvmFields.BlockField.gasUsed,
+    ],
+)
+```
+
+---
+
+## Solana Queries
+
+```python
+sqd = SQD(dataset=Dataset.SOLANA)
+```
+
+### get_instructions
+
+```python
+query = sqd.get_instructions(
+    from_block=200_000_000,
+    to_block=200_001_000,
+    program_id="TokenkegQfeZyiNwAJbNbGKP...",
+    include_transaction=False,
+    include_inner_instructions=False,
+    include_logs=False,
+)
+```
+
+### get_transactions (Solana)
+
+```python
+query = sqd.get_transactions(
+    from_block=200_000_000,
+    account="...",                       # fee payer
+    include_instructions=False,
+    include_balances=False,
+    include_token_balances=False,
+    include_logs=False,
+)
+```
+
+### get_balances
+
+```python
+query = sqd.get_balances(
+    from_block=200_000_000,
+    account="...",
+)
+```
+
+### get_token_balances
+
+```python
+query = sqd.get_token_balances(
+    from_block=200_000_000,
+    account="...",
+)
+```
+
+### get_rewards
+
+```python
+query = sqd.get_rewards(
+    from_block=200_000_000,
+    pubkey="...",
+)
+```
+
+---
+
+## Iteration
+
+### Basic iteration
+
+```python
+async for block in query:
+    print(block["header"]["number"])
+    for tx in block.get("transactions", []):
+        print(tx["hash"])
+    for log in block.get("logs", []):
+        print(log["address"])
+```
+
+### With progress bar
+
+```python
+async for block in query.with_progress(shards=15):
+    process(block)
+```
+
+The `shards` parameter enables parallel fetching for historical data (1-15).
+
+---
+
+## Chaining Queries
+
+Multiple data types in one query:
+
+```python
+query = sqd.get_transactions(
+    from_block=17_000_000,
+    to_block=17_000_010,
+    address="0x...",
+).get_logs(
+    address="0x...",
+    topic0="0x...",
+)
+
+async for block in query:
+    # block contains both transactions and logs
+    txs = block.get("transactions", [])
+    logs = block.get("logs", [])
+```
+
+---
+
+## EVM Field Enums
+
+### EvmFields.BlockField
+
+`hash`, `height`, `number`, `parentHash`, `timestamp`, `nonce`, `sha3Uncles`, `logsBloom`, `transactionsRoot`, `stateRoot`, `receiptsRoot`, `mixHash`, `miner`, `difficulty`, `totalDifficulty`, `extraData`, `size`, `gasLimit`, `gasUsed`, `baseFeePerGas`, `l1BlockNumber`
+
+### EvmFields.TransactionField
+
+`transactionIndex`, `from_`, `to`, `hash`, `gas`, `gasPrice`, `maxFeePerGas`, `maxPriorityFeePerGas`, `input`, `nonce`, `value`, `v`, `r`, `s`, `yParity`, `chainId`, `gasUsed`, `cumulativeGasUsed`, `effectiveGasPrice`, `contractAddress`, `type`, `status`, `sighash`, `l1Fee`, `l1FeeScalar`, `l1GasPrice`, `l1GasUsed`, `l1BlobBaseFee`, `l1BlobBaseFeeScalar`, `l1BaseFeeScalar`
+
+### EvmFields.LogField
+
+`logIndex`, `transactionIndex`, `address`, `data`, `topics`, `transactionHash`
+
+### EvmFields.TraceField
+
+`transactionIndex`, `traceAddress`, `type`, `subtraces`, `error`, `createFrom`, `createValue`, `createGas`, `createInit`, `createResultGasUsed`, `createResultCode`, `createResultAddress`, `callFrom`, `callTo`, `callValue`, `callGas`, `callSighash`, `callInput`, `callResultGasUsed`, `callResultOutput`, `suicideAddress`, `suicideRefundAddress`, `suicideBalance`, `rewardAuthor`, `rewardValue`, `rewardType`
+
+### EvmFields.StateDiffField
+
+`transactionIndex`, `address`, `key`, `kind`, `prev`, `next`
+
+---
+
+## Common Patterns
+
+### Fetch all USDC transfers in a range
+
+```python
+from sqd import SQD, Dataset
+
+async def main():
+    sqd = SQD(dataset=Dataset.ETHEREUM)
+    query = sqd.get_transfers(
+        from_block=17_000_000,
+        to_block=17_010_000,
+        contract_address="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    )
+    
+    async for block in query.with_progress(shards=15):
+        for log in block.get("logs", []):
+            # log contains: address, topics, data, transactionHash, etc.
+            print(log)
+```
+
+### Stream new blocks indefinitely
+
+```python
+query = sqd.get_blocks(
+    from_block=17_000_000,
+    # no to_block = infinite streaming
+)
+
+async for block in query:
+    print(f"New block: {block['header']['number']}")
+```
+
+### Get transactions with their logs
+
+```python
+query = sqd.get_transactions(
+    from_block=17_000_000,
+    to_block=17_000_010,
+    address="0x...",
+    include_logs=True,
+)
+
+async for block in query:
+    for tx in block.get("transactions", []):
+        print(tx["hash"])
+    for log in block.get("logs", []):
+        print(log["transactionHash"])
+```
+
+---
+
+## Dependencies
+
+- Python 3.10+
+- aiohttp >= 3.9.0
+- tqdm >= 4.67.1
+- ujson >= 5.11.0
